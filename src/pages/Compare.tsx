@@ -152,7 +152,13 @@ export function Compare({ dataset }: { dataset: Dataset }) {
           ))}
 
           <Row label="Product" render={(g) => <span style={{ fontSize: 13, lineHeight: 1.4 }}>{g.annotation}</span>} tall />
-          <Row label="Essentiality" kind="representative" render={(_, d) => <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><EssentialityBadge call={d.essentiality} /><EssentialityDots rows={d.essentialityRows} /></div>} />
+          <Row label="Essentiality" kind="representative" render={(_, d) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <EssentialityBadge call={d.essentiality} />
+              <EssentialityDots rows={d.essentialityRows} />
+              <span className="faint" style={{ fontSize: 11.5 }}>{Math.round(d.essentialityConfidence * 100)}% study agreement</span>
+            </div>
+          )} />
           <Row label="Location" render={(g) => <span className="mono" style={{ fontSize: 12.5 }}>{fmtCoord(g.start)}–{fmtCoord(g.end)} {g.strand}</span>} />
           <Row label="Length" render={(g) => <span className="tabnum">{fmtInt(g.length)} aa</span>} />
           <Row label="Protein" kind="representative" render={(_, d) => <span className="tabnum dim" style={{ fontSize: 13 }}>≈{d.protein.mwKda} kDa · pI {d.protein.pI}</span>} />

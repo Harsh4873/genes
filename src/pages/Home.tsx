@@ -1,14 +1,24 @@
 import { useMemo } from 'react';
 import { ArrowRight, Columns3, Table2, Database, Microscope } from 'lucide-react';
-import type { Dataset } from '../lib/types';
+import type { Dataset, EssentialityCall } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
+import { derive } from '../lib/derive';
 import { href, navigate } from '../lib/router';
 import { fmtInt } from '../lib/format';
 import { GeneSearch } from '../components/GeneSearch';
 import { Donut } from '../components/Charts';
-import { SourceBadge } from '../components/common';
+import { EssentialityBadge, SourceBadge } from '../components/common';
 
 const FEATURED = ['Rv1908c', 'Rv0667', 'Rv1484', 'Rv0006', 'Rv0001', 'Rv3875', 'Rv3133c', 'Rv2031c'];
+
+const ESS_ORDER: EssentialityCall[] = ['essential', 'growth-defect', 'non-essential', 'uncertain', 'no-data'];
+const ESS_COLOR: Record<EssentialityCall, string> = {
+  essential: 'var(--ess-essential)',
+  'growth-defect': 'var(--ess-defect)',
+  'non-essential': 'var(--ess-nonessential)',
+  uncertain: 'var(--ess-uncertain)',
+  'no-data': 'var(--ess-uncertain)',
+};
 
 export function Home({ dataset }: { dataset: Dataset }) {
   const stats = useMemo(() => {
@@ -28,7 +38,24 @@ export function Home({ dataset }: { dataset: Dataset }) {
     [dataset],
   );
 
+  const essentialityOverview = useMemo(() => {
+    const counts: Record<EssentialityCall, number> = {
+      essential: 0,
+      'growth-defect': 0,
+      'non-essential': 0,
+      uncertain: 0,
+      'no-data': 0,
+    };
+    for (const g of dataset.genes) counts[derive(g).essentiality] += 1;
+    return ESS_ORDER.filter((k) => counts[k] > 0).map((k) => ({
+      call: k,
+      value: counts[k],
+      color: ESS_COLOR[k],
+    }));
+  }, [dataset]);
+
   const featured = FEATURED.map((o) => dataset.byOrf.get(o)).filter(Boolean);
+  const checksum = dataset.metadata?.snapshot.checksum.value;
 
   return (
     <div className="container">
@@ -75,7 +102,10 @@ export function Home({ dataset }: { dataset: Dataset }) {
       <section className="section">
         <div className="grid-2">
           <div className="card card-pad">
-            <h3 style={{ fontSize: 16, marginBottom: 4 }}>Functional classes</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', marginBottom: 4 }}>
+              <h3 style={{ fontSize: 16, margin: 0 }}>Functional classes</h3>
+              <SourceBadge kind="reference" compact />
+            </div>
             <p className="dim" style={{ fontSize: 13.5, margin: '0 0 8px' }}>
               Every gene assigned to a class by annotation. Nearly a third remain conserved hypotheticals of unknown function.
             </p>
@@ -99,10 +129,43 @@ export function Home({ dataset }: { dataset: Dataset }) {
             </div>
           </div>
 
+          <div className="card card-pad">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline', marginBottom: 4 }}>
+              <h3 style={{ fontSize: 16, margin: 0 }}>Essentiality overview</h3>
+              <SourceBadge kind="representative" compact />
+            </div>
+            <p className="dim" style={{ fontSize: 13.5, margin: '0 0 12px' }}>
+              Genome-wide consensus from the representative TnSeq-style panels. Use it to browse, not as a measured essentiality map.
+            </p>
+            <div className="ess-overview-bar" role="img" aria-label="Genome essentiality overview">
+              {essentialityOverview.map((row) => (
+                <div
+                  key={row.call}
+                  className="ess-overview-seg"
+                  style={{ width: `${(row.value / dataset.count) * 100}%`, background: row.color }}
+                  title={`${row.call}: ${row.value}`}
+                />
+              ))}
+            </div>
+            <div className="ess-overview-list">
+              {essentialityOverview.map((row) => (
+                <a key={row.call} className="ess-overview-row" href={href(`browse?ess=${row.call}`)}>
+                  <EssentialityBadge call={row.call} />
+                  <span className="tabnum dim">{fmtInt(row.value)}</span>
+                  <span className="faint tabnum">{((row.value / dataset.count) * 100).toFixed(1)}%</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="grid-2">
           <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
             <a className="link-card" href={href('compare')}>
               <h3><Columns3 size={18} style={{ color: 'var(--accent)' }} /> Multi-gene comparison</h3>
-              <p>Pin 4+ genes into aligned columns and read essentiality, an expression heatmap, TnSeq fitness and protein
+              <p>Pin genes into aligned columns and read essentiality, an expression heatmap, TnSeq fitness and protein
                 stats across all of them at once. Shareable by URL.</p>
               <span className="btn btn-ghost btn-sm" style={{ marginTop: 10, paddingLeft: 0 }}>Compare genes <ArrowRight size={15} /></span>
             </a>
@@ -111,16 +174,20 @@ export function Home({ dataset }: { dataset: Dataset }) {
               <p>Instant search and multi-facet filtering across the whole genome — by class, strand, essentiality and length —
                 with sortable columns.</p>
             </a>
-            <div className="grid-2" style={{ gap: 16 }}>
-              <a className="link-card" href={href('datasets')}>
-                <h3><Database size={17} style={{ color: 'var(--accent)' }} /> Datasets</h3>
-                <p>The studies behind the panels.</p>
-              </a>
-              <a className="link-card" href={href('about')}>
-                <h3><Microscope size={17} style={{ color: 'var(--accent)' }} /> About & data</h3>
-                <p>What's real vs. representative.</p>
-              </a>
-            </div>
+          </div>
+          <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+            <a className="link-card" href={href('datasets')}>
+              <h3><Database size={17} style={{ color: 'var(--accent)' }} /> Datasets & provenance</h3>
+              <p>
+                Reference catalog snapshot
+                {checksum ? <> · sha256 <span className="mono" style={{ fontSize: 12 }}>{checksum.slice(0, 12)}…</span></> : null}
+                {' '}plus the studies behind the representative panels.
+              </p>
+            </a>
+            <a className="link-card" href={href('about')}>
+              <h3><Microscope size={17} style={{ color: 'var(--accent)' }} /> About & data</h3>
+              <p>What's real reference annotation vs representative demonstration charts.</p>
+            </a>
           </div>
         </div>
       </section>

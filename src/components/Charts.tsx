@@ -38,18 +38,46 @@ export function ExpressionStrip({ points, cell = 22, gap = 3 }: { points: Expres
 
 export function ExpressionBars({ points, maxAbs = 6 }: { points: ExpressionPoint[]; maxAbs?: number }) {
   const rowH = 26;
+  const groupH = 18;
   const width = 460;
   const mid = width * 0.5;
   const half = width * 0.46;
-  const height = points.length * rowH + 24;
+
+  // Keep condition order, but insert a group header row when the group changes.
+  type Row = { kind: 'group'; label: string } | { kind: 'point'; point: ExpressionPoint };
+  const rows: Row[] = [];
+  let lastGroup = '';
+  for (const p of points) {
+    if (p.group !== lastGroup) {
+      rows.push({ kind: 'group', label: p.group });
+      lastGroup = p.group;
+    }
+    rows.push({ kind: 'point', point: p });
+  }
+
+  let yCursor = 6;
+  const layout = rows.map((row) => {
+    const y = yCursor;
+    yCursor += row.kind === 'group' ? groupH : rowH;
+    return { row, y };
+  });
+  const height = yCursor + 22;
+
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Expression fold-change by condition">
-      <line x1={mid} y1={4} x2={mid} y2={points.length * rowH + 2} style={{ stroke: 'var(--border-strong)' }} strokeWidth={1} />
+      <line x1={mid} y1={4} x2={mid} y2={yCursor} style={{ stroke: 'var(--border-strong)' }} strokeWidth={1} />
       <text x={mid - half} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>{`-${maxAbs}`}</text>
       <text x={mid} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>0</text>
       <text x={mid + half} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>{`+${maxAbs}`}</text>
-      {points.map((p, i) => {
-        const y = i * rowH + 6;
+      {layout.map(({ row, y }) => {
+        if (row.kind === 'group') {
+          return (
+            <text key={`g-${row.label}`} x={8} y={y + 12} style={{ fill: 'var(--text)', fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em' }}>
+              {row.label.toUpperCase()}
+            </text>
+          );
+        }
+        const p = row.point;
         const w = Math.min(Math.abs(p.log2fc) / maxAbs, 1) * half;
         const up = p.log2fc >= 0;
         return (
@@ -59,6 +87,167 @@ export function ExpressionBars({ points, maxAbs = 6 }: { points: ExpressionPoint
             <text x={8} y={y + (rowH - 12) / 2 + 4} style={{ fill: 'var(--text-dim)', fontSize: 11 }}>{p.label}</text>
             <text x={width - 6} y={y + (rowH - 12) / 2 + 4} textAnchor="end" style={{ fill: 'var(--text-faint)', fontSize: 10.5, fontVariantNumeric: 'tabular-nums' }}>{fmtSigned(p.log2fc)}</text>
           </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Compact top induced / repressed callouts for a gene profile. */
+export function ExpressionHighlights({ points, limit = 3 }: { points: ExpressionPoint[]; limit?: number }) {
+  const ranked = [...points].sort((a, b) => Math.abs(b.log2fc) - Math.abs(a.log2fc));
+  const up = ranked.filter((p) => p.log2fc > 0).slice(0, limit);
+  const down = ranked.filter((p) => p.log2fc < 0).slice(0, limit);
+  return (
+    <div className="expr-highlights" aria-label="Strongest transcriptional responses">
+      <div>
+        <div className="expr-hl-title" style={{ color: UP }}>Strongest induction</div>
+        {up.length ? up.map((p) => (
+          <div key={p.conditionId} className="expr-hl-row">
+            <span>{p.label}</span>
+            <span className="tabnum mono" style={{ color: UP }}>{fmtSigned(p.log2fc)}</span>
+          </div>
+        )) : <div className="faint" style={{ fontSize: 12.5 }}>No strong up-regulation</div>}
+      </div>
+      <div>
+        <div className="expr-hl-title" style={{ color: DOWN }}>Strongest repression</div>
+        {down.length ? down.map((p) => (
+          <div key={p.conditionId} className="expr-hl-row">
+            <span>{p.label}</span>
+            <span className="tabnum mono" style={{ color: DOWN }}>{fmtSigned(p.log2fc)}</span>
+          </div>
+        )) : <div className="faint" style={{ fontSize: 12.5 }}>No strong down-regulation</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Horizontal stacked bar of essentiality calls across studies. */
+export function EssentialityConsensus({ rows }: { rows: EssentialityRow[] }) {
+  const order = ['essential', 'growth-defect', 'non-essential', 'uncertain', 'no-data'] as const;
+  const counts = Object.fromEntries(order.map((k) => [k, 0])) as Record<string, number>;
+  for (const r of rows) counts[r.call] = (counts[r.call] ?? 0) + 1;
+  const total = rows.length || 1;
+  const labels: Record<string, string> = {
+    essential: 'Essential',
+    'growth-defect': 'Growth-defect',
+    'non-essential': 'Non-essential',
+    uncertain: 'Uncertain',
+    'no-data': 'No data',
+  };
+  return (
+    <div className="ess-consensus" role="img" aria-label="Essentiality call distribution across studies">
+      <div className="ess-consensus-bar">
+        {order.map((call) => {
+          const n = counts[call];
+          if (!n) return null;
+          return (
+            <div
+              key={call}
+              className="ess-consensus-seg"
+              style={{ width: `${(n / total) * 100}%`, background: ESS_COLOR[call] }}
+              title={`${labels[call]}: ${n}/${total}`}
+            />
+          );
+        })}
+      </div>
+      <div className="ess-consensus-legend">
+        {order.map((call) => {
+          const n = counts[call];
+          if (!n) return null;
+          return (
+            <span key={call} className="ess-consensus-item">
+              <span className="dot dot-round" style={{ background: ESS_COLOR[call], width: 8, height: 8 }} />
+              {labels[call]} <span className="tabnum faint">{n}</span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Gene position on the H37Rv chromosome. */
+export function ChromosomeLocus({
+  start,
+  end,
+  genomeEnd,
+  label,
+}: {
+  start: number;
+  end: number;
+  genomeEnd: number;
+  label: string;
+}) {
+  const W = 640;
+  const H = 54;
+  const pad = 12;
+  const trackY = 28;
+  const span = Math.max(1, genomeEnd);
+  const x1 = pad + (Math.min(start, end) / span) * (W - 2 * pad);
+  const x2 = pad + (Math.max(start, end) / span) * (W - 2 * pad);
+  const mid = (x1 + x2) / 2;
+  const pct = ((Math.min(start, end) / span) * 100).toFixed(1);
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label} at ${pct}% of the chromosome`}>
+      <text x={pad} y={14} style={{ fill: 'var(--text-faint)', fontSize: 10 }}>oriC</text>
+      <text x={W - pad} y={14} textAnchor="end" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>ter</text>
+      <line x1={pad} y1={trackY} x2={W - pad} y2={trackY} style={{ stroke: 'var(--border-strong)' }} strokeWidth={3} strokeLinecap="round" />
+      <rect x={Math.min(x1, x2) - 2} y={trackY - 9} width={Math.max(6, Math.abs(x2 - x1) + 4)} height={18} rx={4} style={{ fill: 'var(--accent)' }} fillOpacity={0.9} />
+      <text x={mid} y={trackY + 22} textAnchor="middle" style={{ fill: 'var(--text-dim)', fontSize: 11, fontFamily: 'var(--mono)' }}>
+        {label} · {pct}%
+      </text>
+    </svg>
+  );
+}
+
+/** Horizontal property meters with numeric labels. */
+export function PropertyBars({
+  items,
+}: {
+  items: { label: string; value: number; max?: number; color?: string; display: string }[];
+}) {
+  return (
+    <div className="property-bars">
+      {items.map((item) => (
+        <div key={item.label} className="property-bar-row">
+          <div className="property-bar-meta">
+            <span>{item.label}</span>
+            <span className="tabnum mono faint">{item.display}</span>
+          </div>
+          <Meter value={item.value} max={item.max ?? 1} color={item.color} label={item.label} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mini insertion-density sketch for TnSeq context. */
+export function TnSeqSketch({ saturation, taSites, essential }: { saturation: number; taSites: number; essential: boolean }) {
+  const bars = 28;
+  const height = 44;
+  const width = 280;
+  const gap = 2;
+  const barW = (width - (bars - 1) * gap) / bars;
+  // Deterministic-looking density from saturation: essential genes look sparse.
+  const dens = essential ? saturation * 0.55 : saturation;
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`TnSeq insertion sketch, ${Math.round(saturation * 100)}% saturation across ${taSites} TA sites`}>
+      {Array.from({ length: bars }, (_, i) => {
+        const seed = ((i * 17 + Math.round(dens * 100)) % 13) / 13;
+        const present = seed < dens + 0.08;
+        const h = present ? 10 + seed * 26 : 4;
+        return (
+          <rect
+            key={i}
+            x={i * (barW + gap)}
+            y={height - h}
+            width={barW}
+            height={h}
+            rx={1.5}
+            style={{ fill: present ? 'var(--accent)' : 'var(--panel-3)' }}
+            fillOpacity={present ? 0.75 : 1}
+          />
         );
       })}
     </svg>

@@ -14,7 +14,7 @@ export interface BrowserState {
   page: number;
 }
 
-export const ESSENTIALITY_FILTERS: EssentialityCall[] = ['essential', 'growth-defect', 'non-essential'];
+export const ESSENTIALITY_FILTERS: EssentialityCall[] = ['essential', 'growth-defect', 'non-essential', 'uncertain'];
 export const BROWSER_SORT_KEYS: BrowserSortKey[] = ['position', 'orf', 'gene', 'length', 'category', 'essentiality'];
 export const DEFAULT_BROWSER_STATE: BrowserState = {
   q: '',
@@ -27,7 +27,13 @@ export const DEFAULT_BROWSER_STATE: BrowserState = {
 };
 
 const CATEGORY_IDS = new Set<CategoryId>(CATEGORIES.map((c) => c.id));
-const ESS_IDS = new Set<EssentialityCall>(ESSENTIALITY_FILTERS);
+const ESS_IDS = new Set<EssentialityCall>([
+  'essential',
+  'growth-defect',
+  'non-essential',
+  'uncertain',
+  'no-data',
+]);
 const SORT_IDS = new Set<BrowserSortKey>(BROWSER_SORT_KEYS);
 
 function uniqueCsv(value: string | undefined): string[] {
