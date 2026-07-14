@@ -20,16 +20,31 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
 
 - The gene **catalog** — locus (Rv id), gene symbol, coordinates, strand, protein length, and product description — is the
   H37Rv reference annotation, shipped as a static asset (`public/data/genes.json`).
+- The catalog is built from the checked-in upstream snapshot at `scripts/source/H37Rv.prot_table.html`. Generated JSON records
+  the schema version, canonical upstream URL, snapshot path, and SHA-256 checksum; it intentionally has no build timestamp, so
+  rebuilding an unchanged snapshot is byte-for-byte reproducible.
 - Analytical panels — essentiality, expression, TnSeq fitness, protein biophysics, vulnerability and selection — are
   **representative demonstration data** generated deterministically from each gene (`src/lib/derive.ts`). They are seeded from
   real properties so patterns are plausible and stable, but they are not experimental measurements. The UI labels them as
   representative; see the About page.
+
+### Updating the catalog snapshot
+
+`npm run data:check` fetches the canonical
+`https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html` source and compares its bytes with the checked-in snapshot. It never
+writes files and exits nonzero when the source has drifted. A scheduled, manually runnable GitHub Action performs the same
+read-only check and does not commit changes.
+
+After reviewing an upstream change, run `npm run data:refresh` to explicitly replace the snapshot and rebuild
+`public/data/genes.json`. Commit both reviewed files together. `npm run build:data` remains the offline command for rebuilding
+the JSON from the current checked-in snapshot.
 
 ## Development
 
 ```sh
 npm ci
 npm run build:data   # regenerate public/data/genes.json from scripts/source/
+npm run data:check   # read-only comparison of the snapshot with upstream
 npm test
 npm run typecheck
 npm run build

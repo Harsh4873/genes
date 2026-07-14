@@ -9,11 +9,15 @@
 //
 // Run: node scripts/build-dataset.mjs
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SRC = resolve(here, 'source/H37Rv.prot_table.html');
+export const UPSTREAM_URL = 'https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html';
+export const SNAPSHOT_PATH = 'scripts/source/H37Rv.prot_table.html';
+
+const SRC = resolve(here, '../', SNAPSHOT_PATH);
 const OUT = resolve(here, '../public/data/genes.json');
 
 // Ordered, most-specific-first. The first matching rule wins.
@@ -37,55 +41,77 @@ function classify(gene, annotation) {
   return 'unclassified';
 }
 
-const html = readFileSync(SRC, 'utf8');
-const rows = html.split(/<TR>/i);
-const genes = [];
-for (const r of rows) {
-  const cells = r.split(/<TD>/i).map((c) => c.trim()).filter(Boolean);
-  if (!cells.length) continue;
-  const m = /<a[^>]*>([^<]+)<\/a>/i.exec(cells[0]);
-  if (!m) continue;
-  const orf = m[1].trim();
-  if (!/^Rv\d/.test(orf)) continue;
-  const strip = (x) => x.replace(/<[^>]+>/g, '').trim();
-  const geneRaw = strip(cells[1] || '');
-  const gene = geneRaw && geneRaw !== '-' ? geneRaw : null;
-  const start = parseInt(strip(cells[2] || ''), 10);
-  const end = parseInt(strip(cells[3] || ''), 10);
-  const strand = strip(cells[4] || '+');
-  const aa = parseInt(strip(cells[5] || '0'), 10);
-  const annotation = strip(cells[6] || '');
-  if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-  genes.push({
-    o: orf,
-    g: gene,
-    s: start,
-    e: end,
-    d: strand === '-' ? '-' : '+',
-    l: Number.isFinite(aa) ? aa : Math.round(Math.abs(end - start) / 3),
-    a: annotation,
-    c: classify(gene, annotation),
-  });
+export function buildDataset() {
+  const snapshot = readFileSync(SRC);
+  const html = snapshot.toString('utf8');
+  const rows = html.split(/<TR>/i);
+  const genes = [];
+  for (const r of rows) {
+    const cells = r.split(/<TD>/i).map((c) => c.trim()).filter(Boolean);
+    if (!cells.length) continue;
+    const m = /<a[^>]*>([^<]+)<\/a>/i.exec(cells[0]);
+    if (!m) continue;
+    const orf = m[1].trim();
+    if (!/^Rv\d/.test(orf)) continue;
+    const strip = (x) => x.replace(/<[^>]+>/g, '').trim();
+    const geneRaw = strip(cells[1] || '');
+    const gene = geneRaw && geneRaw !== '-' ? geneRaw : null;
+    const start = parseInt(strip(cells[2] || ''), 10);
+    const end = parseInt(strip(cells[3] || ''), 10);
+    const strand = strip(cells[4] || '+');
+    const aa = parseInt(strip(cells[5] || '0'), 10);
+    const annotation = strip(cells[6] || '');
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    genes.push({
+      o: orf,
+      g: gene,
+      s: start,
+      e: end,
+      d: strand === '-' ? '-' : '+',
+      l: Number.isFinite(aa) ? aa : Math.round(Math.abs(end - start) / 3),
+      a: annotation,
+      c: classify(gene, annotation),
+    });
+  }
+
+  genes.sort((a, b) => a.s - b.s);
+
+  const byCat = {};
+  for (const g of genes) byCat[g.c] = (byCat[g.c] || 0) + 1;
+
+  const payload = {
+    metadata: {
+      schema: {
+        name: 'mtbscope-gene-catalog',
+        version: 1,
+      },
+      source: {
+        name: 'TB Genome Portal H37Rv protein table',
+        url: UPSTREAM_URL,
+      },
+      snapshot: {
+        path: SNAPSHOT_PATH,
+        checksum: {
+          algorithm: 'sha256',
+          value: createHash('sha256').update(snapshot).digest('hex'),
+        },
+      },
+    },
+    organism: 'Mycobacterium tuberculosis H37Rv',
+    source: 'H37Rv reference annotation (protein table via the TB Genome Portal, orca2.tamu.edu/U19)',
+    note: 'Catalog fields (ORF, gene, coordinates, strand, length, annotation) are the reference annotation. Functional category is assigned by keyword heuristic.',
+    count: genes.length,
+    categories: byCat,
+    genes,
+  };
+
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(OUT, JSON.stringify(payload));
+  console.log(`Wrote ${genes.length} genes -> ${OUT}`);
+  console.log('Category distribution:');
+  for (const [k, v] of Object.entries(byCat).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${k.padEnd(16)} ${v}`);
+  }
 }
 
-genes.sort((a, b) => a.s - b.s);
-
-const byCat = {};
-for (const g of genes) byCat[g.c] = (byCat[g.c] || 0) + 1;
-
-const payload = {
-  organism: 'Mycobacterium tuberculosis H37Rv',
-  source: 'H37Rv reference annotation (protein table via the TB Genome Portal, orca2.tamu.edu/U19)',
-  note: 'Catalog fields (ORF, gene, coordinates, strand, length, annotation) are the reference annotation. Functional category is assigned by keyword heuristic.',
-  count: genes.length,
-  categories: byCat,
-  genes,
-};
-
-mkdirSync(dirname(OUT), { recursive: true });
-writeFileSync(OUT, JSON.stringify(payload));
-console.log(`Wrote ${genes.length} genes -> ${OUT}`);
-console.log('Category distribution:');
-for (const [k, v] of Object.entries(byCat).sort((a, b) => b[1] - a[1])) {
-  console.log(`  ${k.padEnd(16)} ${v}`);
-}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) buildDataset();

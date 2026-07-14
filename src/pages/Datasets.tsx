@@ -1,22 +1,53 @@
 import type { Dataset } from '../lib/types';
 import { CONDITIONS, ESSENTIALITY_DATASETS } from '../lib/conditions';
-import { SectionTitle, Provenance } from '../components/common';
+import { SectionTitle, Provenance, SourceBadge } from '../components/common';
+import { fmtInt } from '../lib/format';
 
 const GROUP_COLOR: Record<string, string> = {
   Stress: '#e0567a', 'Growth state': '#5b8def', Host: '#22b8a6', Drug: '#f2994a',
 };
 
-export function Datasets(_: { dataset: Dataset }) {
+export function Datasets({ dataset }: { dataset: Dataset }) {
+  const sourceUrl = dataset.metadata?.source.url ?? 'https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html';
+  const checksum = dataset.metadata?.snapshot.checksum.value;
+
   return (
     <div className="container">
       <h1 style={{ fontSize: 26 }}>Datasets</h1>
       <p className="dim" style={{ maxWidth: '64ch', marginTop: 6 }}>
-        The panels across MtbScope are organised around the kinds of functional-genomics experiments that characterise
-        <i> M. tuberculosis</i> genes. Below are the study designs each panel is modelled on.
+        MtbScope separates the reviewed reference catalog from representative analytical panels. This page is the source map:
+        what is real annotation, what is demonstration data, and how the snapshot stays checkable.
       </p>
 
       <div className="section">
-        <SectionTitle>Essentiality &amp; fitness (TnSeq)</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="reference" />}>Reference catalog snapshot</SectionTitle>
+        <div className="source-grid">
+          <div className="card card-pad source-panel">
+            <dl className="kv">
+              <dt>Organism</dt><dd>{dataset.organism}</dd>
+              <dt>Records</dt><dd className="tabnum">{fmtInt(dataset.count)} protein-coding genes</dd>
+              <dt>Source</dt><dd><a href={sourceUrl} target="_blank" rel="noopener noreferrer">TB Genome Portal H37Rv protein table</a></dd>
+              <dt>Snapshot</dt><dd className="mono">{dataset.metadata?.snapshot.path ?? 'scripts/source/H37Rv.prot_table.html'}</dd>
+              <dt>Checksum</dt><dd className="mono checksum">{checksum ? checksum : 'available after the next catalog rebuild'}</dd>
+            </dl>
+          </div>
+          <div className="card card-pad source-panel">
+            <h3>Freshness model</h3>
+            <p className="dim">
+              The site ships a reviewed static JSON catalog. A scheduled check fetches the official portal protein table and
+              compares its bytes with the checked-in snapshot. When upstream changes, the refresh command rebuilds the snapshot
+              and catalog together so the website stays reproducible.
+            </p>
+            <div className="source-actions">
+              <a className="btn btn-sm" href={sourceUrl} target="_blank" rel="noopener noreferrer">Open source table</a>
+              <span className="badge">Read-only check: <span className="mono">npm run data:check</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="section">
+        <SectionTitle aside={<SourceBadge kind="representative" />}>Essentiality &amp; fitness (TnSeq)</SectionTitle>
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -41,7 +72,7 @@ export function Datasets(_: { dataset: Dataset }) {
       </div>
 
       <div className="section">
-        <SectionTitle>Transcriptional response panel</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="representative" />}>Transcriptional response panel</SectionTitle>
         <div className="card card-pad">
           <p className="dim" style={{ marginTop: 0, fontSize: 13.5 }}>
             Expression fold-changes are reported across {CONDITIONS.length} conditions spanning stress, growth state, host and
@@ -61,9 +92,9 @@ export function Datasets(_: { dataset: Dataset }) {
 
       <div className="section">
         <Provenance>
-          These describe the experimental designs the panels emulate. The per-gene values shown throughout MtbScope are
-          <b> representative demonstration data</b>, not the primary measurements from these studies. Use the external database
-          links on any gene page to reach curated primary data.
+          The catalog snapshot above is the reference annotation. The per-gene values in the essentiality, expression, fitness,
+          protein, vulnerability, pathway and module panels are <b>representative demonstration data</b>, not the primary
+          measurements from those studies. Use the external database links on any gene page to reach curated primary data.
         </Provenance>
       </div>
     </div>

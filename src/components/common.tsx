@@ -6,9 +6,39 @@ import { category } from '../lib/categories';
 export function CategoryTag({ id, withLabel = true }: { id: CategoryId; withLabel?: boolean }) {
   const c = category(id);
   return (
-    <span className="cat-tag" title={c.label}>
-      <span className="dot" style={{ background: c.color }} />
+    <span className="cat-tag" title={c.label} aria-label={withLabel ? undefined : c.label}>
+      <span className="dot" aria-hidden="true" style={{ background: c.color }} />
       {withLabel ? c.short : null}
+    </span>
+  );
+}
+
+export type DataKind = 'reference' | 'representative';
+
+const SOURCE_META: Record<DataKind, { label: string; short: string; description: string }> = {
+  reference: {
+    label: 'Reference annotation',
+    short: 'Reference',
+    description: 'Catalog information from the H37Rv reference annotation.',
+  },
+  representative: {
+    label: 'Representative demonstration data',
+    short: 'Representative',
+    description: 'Deterministically generated demonstration data, not an experimental measurement.',
+  },
+};
+
+export function SourceBadge({ kind, compact = false }: { kind: DataKind; compact?: boolean }) {
+  const meta = SOURCE_META[kind];
+  return (
+    <span
+      className={`source-badge source-badge-${kind}`}
+      data-kind={kind}
+      title={meta.description}
+      aria-label={`${meta.label}. ${meta.description}`}
+    >
+      <span className="source-badge-marker" aria-hidden="true" />
+      <span className="source-badge-label">{compact ? meta.short : meta.label}</span>
     </span>
   );
 }
@@ -24,7 +54,7 @@ const ESS_LABEL: Record<EssentialityCall, string> = {
 export function EssentialityBadge({ call }: { call: EssentialityCall }) {
   return (
     <span className={`ess ess-${call}`}>
-      <span className="dot dot-round" style={{ background: 'currentColor', width: 8, height: 8 }} />
+      <span className="dot dot-round" aria-hidden="true" style={{ background: 'currentColor', width: 8, height: 8 }} />
       {ESS_LABEL[call]}
     </span>
   );

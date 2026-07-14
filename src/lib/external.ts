@@ -19,7 +19,7 @@ export const EXTERNAL_LINKS: ExternalLink[] = [
     id: 'tbportal',
     label: 'TB Genome Portal',
     desc: 'Original U19 annotation portal',
-    href: (orf) => `https://orca2.tamu.edu/U19/genes/detail/${orf}/`,
+    href: (orf) => `https://orca2.tamu.edu/U19/pages/${encodeURIComponent(orf)}.html`,
   },
   {
     id: 'kegg',

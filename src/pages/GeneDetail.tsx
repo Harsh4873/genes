@@ -5,9 +5,9 @@ import { category } from '../lib/categories';
 import { derive } from '../lib/derive';
 import { EXTERNAL_LINKS } from '../lib/external';
 import { href, navigate } from '../lib/router';
-import { fmtCoord, fmtInt, fmtSigned } from '../lib/format';
+import { fmtCoord, fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
-import { CategoryTag, EssentialityBadge, Provenance, SectionTitle, StrandBadge } from '../components/common';
+import { CategoryTag, EssentialityBadge, Provenance, SectionTitle, SourceBadge, StrandBadge } from '../components/common';
 import { ExpressionBars, GenomeContext, Meter, EssentialityDots } from '../components/Charts';
 
 const ESS_CALL_CLASS: Record<string, string> = {
@@ -41,6 +41,7 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const d = derive(gene);
   const inCompare = compareStore.has(gene.orf);
   const c = category(gene.category);
+  const portalHref = EXTERNAL_LINKS.find((l) => l.id === 'tbportal')?.href(gene.orf, gene.gene);
 
   const copyLink = () => {
     navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/gene/${gene.orf}`).then(() => {
@@ -68,8 +69,16 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
             {inCompare ? <><Check size={16} /> In comparison</> : <><Plus size={16} /> Add to compare</>}
           </button>
           {compare.length ? <a className="btn" href={href('compare')}><Columns3 size={16} /> {compare.length}</a> : null}
+          {portalHref ? <a className="btn" href={portalHref} target="_blank" rel="noopener noreferrer">TB Portal <ExternalLink size={14} /></a> : null}
           <button className="btn btn-ghost" onClick={copyLink} title="Copy link">{copied ? <Check size={16} /> : <Link2 size={16} />}</button>
         </div>
+      </div>
+
+      <div className="source-strip" aria-label="Data source summary">
+        <SourceBadge kind="reference" />
+        <span className="dim">Catalog fields, coordinates, class and external links.</span>
+        <SourceBadge kind="representative" />
+        <span className="dim">Charts, fitness, protein, GO terms and pathway summaries.</span>
       </div>
 
       <div className="divider" />
@@ -77,17 +86,17 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
       <div className="detail-grid">
         <div style={{ display: 'grid', gap: 18 }}>
           <div>
-            <SectionTitle>Genomic neighbourhood</SectionTitle>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Genomic neighbourhood</SectionTitle>
             <div className="card card-pad" style={{ overflowX: 'auto' }}>
               <GenomeContext neighbors={neighbors} focusOrf={gene.orf} onPick={(o) => navigate(`gene/${o}`)} />
               <div className="legend-row" style={{ marginTop: 8 }}>
-                <span className="faint" style={{ fontSize: 12 }}>Arrows show strand · click a neighbour to open it · coloured by functional class.</span>
+                <span className="faint" style={{ fontSize: 12 }}>Arrows show strand · select a neighbour to open it · coloured by functional class.</span>
               </div>
             </div>
           </div>
 
           <div>
-            <SectionTitle aside={<EssentialityDots rows={d.essentialityRows} />}>Essentiality</SectionTitle>
+            <SectionTitle aside={<><SourceBadge kind="representative" compact /><EssentialityDots rows={d.essentialityRows} /></>}>Essentiality</SectionTitle>
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -110,7 +119,7 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           </div>
 
           <div>
-            <SectionTitle aside={<span className="heat-legend"><span>down</span><span className="heat-bar" /><span>up</span></span>}>Transcriptional response (log₂ fold-change)</SectionTitle>
+            <SectionTitle aside={<><SourceBadge kind="representative" compact /><span className="heat-legend"><span>down</span><span className="heat-bar" /><span>up</span></span></>}>Transcriptional response (log₂ fold-change)</SectionTitle>
             <div className="card card-pad">
               <ExpressionBars points={d.expression} />
             </div>
@@ -131,7 +140,10 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           </div>
 
           <div className="card card-pad">
-            <h4 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 12 }}>Fitness & protein</h4>
+            <div className="card-title-row">
+              <h4>Fitness & protein</h4>
+              <SourceBadge kind="representative" compact />
+            </div>
             <div className="metric-grid">
               <div className="metric"><div className="m-num tabnum">{d.tnseq.taSites}</div><div className="m-lab">TA sites</div></div>
               <div className="metric"><div className="m-num tabnum">{d.tnseq.meanInsertions}</div><div className="m-lab">mean insertions</div></div>
@@ -140,9 +152,9 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
             </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span className="dim">TnSeq saturation</span><span className="tabnum">{Math.round(d.tnseq.saturation * 100)}%</span></div>
-              <Meter value={d.tnseq.saturation} />
+              <Meter value={d.tnseq.saturation} label="TnSeq saturation" />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 10 }}><span className="dim">Vulnerability index</span><span className="tabnum">{d.vulnerability}</span></div>
-              <Meter value={d.vulnerability} color="var(--danger)" />
+              <Meter value={d.vulnerability} color="var(--danger)" label="Vulnerability index" />
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
               <span className="badge" style={{ background: 'var(--panel-2)', color: 'var(--text-dim)' }}>AlphaFold: {d.protein.alphaFold}</span>
@@ -152,14 +164,20 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           </div>
 
           <div className="card card-pad">
-            <h4 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 10 }}>GO terms</h4>
+            <div className="card-title-row">
+              <h4>GO terms</h4>
+              <SourceBadge kind="representative" compact />
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {d.go.map((g) => <span key={g} className="mono dim" style={{ fontSize: 12.5 }}>{g}</span>)}
             </div>
           </div>
 
           <div className="card card-pad">
-            <h4 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 10 }}>External resources</h4>
+            <div className="card-title-row">
+              <h4>External resources</h4>
+              <SourceBadge kind="reference" compact />
+            </div>
             <div className="ext-links">
               {EXTERNAL_LINKS.map((l) => (
                 <a key={l.id} className="ext-link" href={l.href(gene.orf, gene.gene)} target="_blank" rel="noopener noreferrer">

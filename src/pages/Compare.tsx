@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Share2, Trash2, Plus, Check, Columns3, ExternalLink } from 'lucide-react';
 import type { Dataset, Gene, DerivedGene } from '../lib/types';
 import { category } from '../lib/categories';
 import { CONDITIONS } from '../lib/conditions';
 import { derive } from '../lib/derive';
-import { href, navigate } from '../lib/router';
+import { href, replaceRoute, useRoute } from '../lib/router';
 import { fmtCoord, fmtInt, fmtSigned } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
 import { GeneSearch } from '../components/GeneSearch';
-import { CategoryTag, EssentialityBadge } from '../components/common';
+import { CategoryTag, EssentialityBadge, SourceBadge } from '../components/common';
 import { EssentialityDots, Meter, exprOverlay } from '../components/Charts';
 
 const PRESETS: { name: string; desc: string; orfs: string[] }[] = [
@@ -28,27 +28,43 @@ function HeatBox({ v }: { v: number }) {
 }
 
 export function Compare({ dataset }: { dataset: Dataset }) {
+  const route = useRoute();
   const compare = useCompare();
   const [copied, setCopied] = useState(false);
-  const imported = useRef(false);
 
-  // Import a shared set from the URL once, on first mount.
-  useEffect(() => {
-    if (imported.current) return;
-    imported.current = true;
-    const m = /[?&]genes=([^&]+)/.exec(window.location.hash);
-    if (m) {
-      const wanted = decodeURIComponent(m[1]).split(',').map((s) => s.trim()).filter((o) => dataset.byOrf.has(o));
-      if (wanted.length) compareStore.set(wanted);
+  const canonicalGenes = (orfs: string[]) => {
+    const unique: string[] = [];
+    for (const orf of orfs) {
+      if (!dataset.byOrf.has(orf) || unique.includes(orf)) continue;
+      unique.push(orf);
+      if (unique.length >= compareStore.max) break;
     }
-  }, [dataset]);
+    return unique;
+  };
 
-  // Keep the URL in sync (shareable) without triggering a route change.
+  const routePathForGenes = (orfs: string[]) => {
+    const genes = canonicalGenes(orfs);
+    if (!genes.length) return 'compare';
+    const params = new URLSearchParams();
+    params.set('genes', genes.join(','));
+    return `compare?${params.toString()}`;
+  };
+
+  const setCompared = (orfs: string[]) => {
+    const genes = canonicalGenes(orfs);
+    compareStore.set(genes);
+    replaceRoute(routePathForGenes(genes));
+  };
+
   useEffect(() => {
-    const base = '#/compare';
-    const next = compare.length ? `${base}?genes=${compare.join(',')}` : base;
-    if (window.location.hash !== next) history.replaceState(null, '', next);
-  }, [compare]);
+    if (route.params.genes === undefined) return;
+    setCompared(route.params.genes.split(',').map((s) => s.trim()));
+  }, [route.raw, dataset]);
+
+  useEffect(() => {
+    if (route.params.genes !== undefined || !compare.length) return;
+    replaceRoute(routePathForGenes(compare));
+  }, [compare, route.params.genes]);
 
   const genes = useMemo(
     () => compare.map((o) => dataset.byOrf.get(o)).filter((g): g is Gene => Boolean(g)),
@@ -57,7 +73,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
   const derived = useMemo(() => new Map<string, DerivedGene>(genes.map((g) => [g.orf, derive(g)])), [genes]);
 
   const share = () => {
-    const url = `${location.origin}${location.pathname}#/compare?genes=${compare.join(',')}`;
+    const url = `${location.origin}${location.pathname}#/${routePathForGenes(compare)}`;
     navigator.clipboard?.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {});
   };
 
@@ -70,13 +86,13 @@ export function Compare({ dataset }: { dataset: Dataset }) {
           aligned columns. Search below, or start from a curated set.
         </p>
         <div className="card card-pad" style={{ maxWidth: 560, marginTop: 16 }}>
-          <GeneSearch genes={dataset.genes} variant="hero" placeholder="Add a gene — katG, Rv0667, gyrase…" onPick={(g) => compareStore.add(g.orf)} />
+          <GeneSearch genes={dataset.genes} variant="hero" placeholder="Add a gene - katG, Rv0667, gyrase..." onPick={(g) => setCompared([...compare, g.orf])} />
         </div>
         <div className="section">
           <h3 style={{ fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)', marginBottom: 10 }}>Start from a set</h3>
           <div className="grid-3">
             {PRESETS.map((p) => (
-              <button key={p.name} className="link-card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => compareStore.set(p.orfs.filter((o) => dataset.byOrf.has(o)))}>
+              <button key={p.name} className="link-card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setCompared(p.orfs)}>
                 <h3 style={{ fontSize: 15 }}>{p.name}</h3>
                 <p className="mono" style={{ fontSize: 12.5 }}>{p.desc}</p>
               </button>
@@ -90,9 +106,9 @@ export function Compare({ dataset }: { dataset: Dataset }) {
   const cols = `170px repeat(${genes.length}, minmax(240px, 1fr))`;
 
   // A labelled row: sticky label cell + one rendered cell per gene.
-  const Row = ({ label, render, tall }: { label: string; render: (g: Gene, d: DerivedGene) => React.ReactNode; tall?: boolean }) => (
+  const Row = ({ label, kind = 'reference', render, tall }: { label: string; kind?: 'reference' | 'representative'; render: (g: Gene, d: DerivedGene) => React.ReactNode; tall?: boolean }) => (
     <>
-      <div className="cmp-rowlabel">{label}</div>
+      <div className="cmp-rowlabel"><span className="cmp-label-stack"><span>{label}</span><SourceBadge kind={kind} compact /></span></div>
       {genes.map((g) => (
         <div key={g.orf} className="cmp-cell" style={tall ? { minHeight: 46 } : undefined}>{render(g, derived.get(g.orf)!)}</div>
       ))}
@@ -107,10 +123,10 @@ export function Compare({ dataset }: { dataset: Dataset }) {
         </h1>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ width: 260 }}>
-            <GeneSearch genes={dataset.genes} placeholder="Add a gene…" onPick={(g) => compareStore.add(g.orf)} />
+            <GeneSearch genes={dataset.genes} placeholder="Add a gene..." onPick={(g) => setCompared([...compare, g.orf])} />
           </div>
           <button className="btn btn-sm" onClick={share} disabled={!compare.length}>{copied ? <><Check size={15} /> Copied</> : <><Share2 size={15} /> Share</>}</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => compareStore.clear()}><Trash2 size={15} /> Clear</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setCompared([])}><Trash2 size={15} /> Clear</button>
         </div>
       </div>
 
@@ -128,7 +144,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
           <div className="cmp-rowlabel" style={{ background: 'var(--panel)', position: 'sticky', top: 56, left: 0, zIndex: 6 }} />
           {genes.map((g) => (
             <div key={g.orf} className="cmp-header" style={{ position: 'sticky', top: 56, zIndex: 5 }}>
-              <button className="icon-btn cmp-remove" style={{ width: 26, height: 26 }} onClick={() => compareStore.remove(g.orf)} title="Remove"><X size={14} /></button>
+              <button className="icon-btn cmp-remove" style={{ width: 26, height: 26 }} onClick={() => setCompared(compare.filter((orf) => orf !== g.orf))} title="Remove"><X size={14} /></button>
               <a className="cmp-orf" href={href(`gene/${g.orf}`)} style={{ display: 'block' }}>{g.orf}</a>
               {g.gene ? <a className="cmp-sym" href={href(`gene/${g.orf}`)}>{g.gene}</a> : <span className="faint">unnamed</span>}
               <div style={{ marginTop: 6 }}><CategoryTag id={g.category} /></div>
@@ -136,17 +152,17 @@ export function Compare({ dataset }: { dataset: Dataset }) {
           ))}
 
           <Row label="Product" render={(g) => <span style={{ fontSize: 13, lineHeight: 1.4 }}>{g.annotation}</span>} tall />
-          <Row label="Essentiality" render={(_, d) => <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><EssentialityBadge call={d.essentiality} /><EssentialityDots rows={d.essentialityRows} /></div>} />
+          <Row label="Essentiality" kind="representative" render={(_, d) => <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><EssentialityBadge call={d.essentiality} /><EssentialityDots rows={d.essentialityRows} /></div>} />
           <Row label="Location" render={(g) => <span className="mono" style={{ fontSize: 12.5 }}>{fmtCoord(g.start)}–{fmtCoord(g.end)} {g.strand}</span>} />
           <Row label="Length" render={(g) => <span className="tabnum">{fmtInt(g.length)} aa</span>} />
-          <Row label="Protein" render={(_, d) => <span className="tabnum dim" style={{ fontSize: 13 }}>≈{d.protein.mwKda} kDa · pI {d.protein.pI}</span>} />
-          <Row label="TnSeq saturation" render={(_, d) => <div><Meter value={d.tnseq.saturation} /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{Math.round(d.tnseq.saturation * 100)}% · {d.tnseq.taSites} TA</span></div>} />
-          <Row label="Vulnerability" render={(_, d) => <div><Meter value={d.vulnerability} color="var(--danger)" /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{d.vulnerability}</span></div>} />
-          <Row label="Pathway" render={(_, d) => <span className="dim" style={{ fontSize: 12.5 }}>{d.pathway}</span>} />
-          <Row label="Module" render={(_, d) => <span className="dim">#{d.module}</span>} />
+          <Row label="Protein" kind="representative" render={(_, d) => <span className="tabnum dim" style={{ fontSize: 13 }}>≈{d.protein.mwKda} kDa · pI {d.protein.pI}</span>} />
+          <Row label="TnSeq saturation" kind="representative" render={(_, d) => <div><Meter value={d.tnseq.saturation} label="TnSeq saturation" /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{Math.round(d.tnseq.saturation * 100)}% · {d.tnseq.taSites} TA</span></div>} />
+          <Row label="Vulnerability" kind="representative" render={(_, d) => <div><Meter value={d.vulnerability} color="var(--danger)" label="Vulnerability index" /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{d.vulnerability}</span></div>} />
+          <Row label="Pathway" kind="representative" render={(_, d) => <span className="dim" style={{ fontSize: 12.5 }}>{d.pathway}</span>} />
+          <Row label="Module" kind="representative" render={(_, d) => <span className="dim">#{d.module}</span>} />
 
           {/* Expression matrix: one row per condition, one cell per gene. */}
-          <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}>Transcriptional response</div>
+          <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}><span className="cmp-label-stack"><span>Transcriptional response</span><SourceBadge kind="representative" compact /></span></div>
           {genes.map((g) => <div key={g.orf} className="cmp-cell" style={{ background: 'var(--panel-3)', fontSize: 11.5 }} />)}
 
           {CONDITIONS.map((c) => (

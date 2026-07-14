@@ -41,9 +41,13 @@ export function ExpressionBars({ points, maxAbs = 6 }: { points: ExpressionPoint
   const width = 460;
   const mid = width * 0.5;
   const half = width * 0.46;
+  const height = points.length * rowH + 24;
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${points.length * rowH + 8}`} role="img" aria-label="Expression fold-change by condition">
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Expression fold-change by condition">
       <line x1={mid} y1={4} x2={mid} y2={points.length * rowH + 2} style={{ stroke: 'var(--border-strong)' }} strokeWidth={1} />
+      <text x={mid - half} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>{`-${maxAbs}`}</text>
+      <text x={mid} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>0</text>
+      <text x={mid + half} y={height - 4} textAnchor="middle" style={{ fill: 'var(--text-faint)', fontSize: 10 }}>{`+${maxAbs}`}</text>
       {points.map((p, i) => {
         const y = i * rowH + 6;
         const w = Math.min(Math.abs(p.log2fc) / maxAbs, 1) * half;
@@ -87,6 +91,7 @@ export function Donut({ data, size = 200, thickness = 26, onSlice }: { data: { l
         {data.map((d) => {
           const frac = d.value / total;
           const dash = frac * circ;
+          const label = `${d.label}: ${d.value} (${(frac * 100).toFixed(1)}%)`;
           const el = (
             <circle
               key={d.label}
@@ -99,9 +104,18 @@ export function Donut({ data, size = 200, thickness = 26, onSlice }: { data: { l
               strokeDasharray={`${dash} ${circ - dash}`}
               strokeDashoffset={-offset}
               style={{ cursor: onSlice ? 'pointer' : 'default', transition: 'stroke-width 0.15s' }}
+              role={onSlice ? 'button' : undefined}
+              tabIndex={onSlice ? 0 : undefined}
+              aria-label={label}
               onClick={onSlice ? () => onSlice(d.label) : undefined}
+              onKeyDown={onSlice ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSlice(d.label);
+                }
+              } : undefined}
             >
-              <title>{`${d.label}: ${d.value} (${(frac * 100).toFixed(1)}%)`}</title>
+              <title>{label}</title>
             </circle>
           );
           offset += dash;
@@ -123,20 +137,29 @@ const ESS_COLOR: Record<string, string> = {
 };
 
 export function EssentialityDots({ rows }: { rows: EssentialityRow[] }) {
+  const summary = rows.map((r) => `${r.ref}: ${r.call}`).join('; ');
   return (
-    <div style={{ display: 'flex', gap: 5 }}>
+    <div style={{ display: 'flex', gap: 5 }} role="img" aria-label={`Essentiality calls. ${summary}`}>
       {rows.map((r) => (
         <span key={r.datasetId} title={`${r.ref} — ${r.condition}: ${r.call}`}
+          aria-hidden="true"
           className="dot dot-round" style={{ background: ESS_COLOR[r.call], width: 11, height: 11, opacity: r.call === 'no-data' ? 0.3 : 1 }} />
       ))}
     </div>
   );
 }
 
-export function Meter({ value, max = 1, color = 'var(--accent)', height = 8 }: { value: number; max?: number; color?: string; height?: number }) {
+export function Meter({ value, max = 1, color = 'var(--accent)', height = 8, label = 'Meter value' }: { value: number; max?: number; color?: string; height?: number; label?: string }) {
   const pct = Math.max(0, Math.min(1, value / max)) * 100;
   return (
-    <div style={{ background: 'var(--panel-3)', borderRadius: 999, height, overflow: 'hidden' }}>
+    <div
+      style={{ background: 'var(--panel-3)', borderRadius: 999, height, overflow: 'hidden' }}
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={Number(value.toFixed(3))}
+    >
       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999, transition: 'width 0.3s' }} />
     </div>
   );
@@ -167,9 +190,24 @@ export function GenomeContext({ neighbors, focusOrf, onPick }: { neighbors: Gene
         const path = up
           ? `M${x1},${y} H${x1 + w - arrow} L${x1 + w},${y + 9} L${x1 + w - arrow},${y + 18} H${x1} Z`
           : `M${x1 + w},${y} H${x1 + arrow} L${x1},${y + 9} L${x1 + arrow},${y + 18} H${x1 + w} Z`;
+        const label = `${g.orf}${g.gene ? ` (${g.gene})` : ''}, ${g.strand} strand, ${g.annotation}`;
         return (
-          <g key={g.orf} style={{ cursor: 'pointer' }} onClick={onPick ? () => onPick(g.orf) : undefined}>
-            <title>{`${g.orf}${g.gene ? ` (${g.gene})` : ''} · ${g.strand} · ${g.annotation}`}</title>
+          <g
+            key={g.orf}
+            className="genome-neighbor"
+            style={{ cursor: onPick ? 'pointer' : 'default' }}
+            role={onPick ? 'button' : undefined}
+            tabIndex={onPick ? 0 : undefined}
+            aria-label={label}
+            onClick={onPick ? () => onPick(g.orf) : undefined}
+            onKeyDown={onPick ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onPick(g.orf);
+              }
+            } : undefined}
+          >
+            <title>{label}</title>
             <path d={path} fill={col} fillOpacity={focus ? 1 : 0.5} stroke={focus ? 'var(--text)' : 'none'} strokeWidth={focus ? 1.5 : 0} />
             {w > 34 ? (
               <text x={x1 + w / 2} y={y + 12.5} textAnchor="middle" style={{ fill: focus ? 'var(--accent-contrast)' : 'var(--text)', fontSize: 9.5, fontWeight: focus ? 700 : 500, pointerEvents: 'none' }}>

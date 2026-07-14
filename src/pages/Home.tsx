@@ -6,7 +6,7 @@ import { href, navigate } from '../lib/router';
 import { fmtInt } from '../lib/format';
 import { GeneSearch } from '../components/GeneSearch';
 import { Donut } from '../components/Charts';
-import { CategoryTag } from '../components/common';
+import { SourceBadge } from '../components/common';
 
 const FEATURED = ['Rv1908c', 'Rv0667', 'Rv1484', 'Rv0006', 'Rv0001', 'Rv3875', 'Rv3133c', 'Rv2031c'];
 
@@ -36,12 +36,17 @@ export function Home({ dataset }: { dataset: Dataset }) {
         <DnaStrip />
         <h1>The tuberculosis genome, built for comparison.</h1>
         <p className="lede">
-          Search all {fmtInt(dataset.count)} protein-coding genes of <i>Mycobacterium tuberculosis</i> H37Rv, open a rich
-          profile for any one of them, and line up four or more genes side by side to read their essentiality, expression,
-          and fitness data on a single screen.
+          Search the reviewed H37Rv protein-coding catalog, open rich per-gene profiles, and line up genes side by side to read
+          annotation, essentiality-style summaries, expression-style response charts, fitness and protein context on one screen.
         </p>
         <div className="hero-search">
           <GeneSearch genes={dataset.genes} variant="hero" placeholder="Try katG, Rv0667, gyrase, or “efflux transporter”…" />
+        </div>
+        <div className="source-strip home-source-strip" aria-label="Data source summary">
+          <SourceBadge kind="reference" />
+          <span className="dim">Exact {fmtInt(dataset.count)}-gene catalog snapshot from the TB Genome Portal table.</span>
+          <SourceBadge kind="representative" />
+          <span className="dim">Analytical charts are deterministic demonstration data.</span>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
           <a className="btn btn-primary" href={href('browse')}><Table2 size={16} /> Browse genes</a>

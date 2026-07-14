@@ -27,6 +27,24 @@ export interface RawGene {
   c: CategoryId;
 }
 
+export interface CatalogMetadata {
+  schema: {
+    name: string;
+    version: number;
+  };
+  source: {
+    name: string;
+    url: string;
+  };
+  snapshot: {
+    path: string;
+    checksum: {
+      algorithm: 'sha256';
+      value: string;
+    };
+  };
+}
+
 /** Expanded gene record used throughout the app. */
 export interface Gene {
   orf: string;
@@ -43,6 +61,7 @@ export interface Gene {
 }
 
 export interface Dataset {
+  metadata?: CatalogMetadata;
   organism: string;
   source: string;
   note: string;

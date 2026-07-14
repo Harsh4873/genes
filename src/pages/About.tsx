@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import { href } from '../lib/router';
-import { SectionTitle } from '../components/common';
+import { SectionTitle, SourceBadge } from '../components/common';
 
 export function About() {
   return (
@@ -14,17 +14,19 @@ export function About() {
       </p>
 
       <div className="section">
-        <SectionTitle>What's real</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="reference" />}>What's real</SectionTitle>
         <ul style={{ lineHeight: 1.75, color: 'var(--text-dim)', paddingLeft: 20 }}>
           <li>The complete catalog of <b>4,018 protein-coding genes</b> — locus (Rv id), gene symbol, genomic coordinates,
             strand, protein length and product description — from the H37Rv reference annotation.</li>
-          <li>External links resolve to the live records for each gene at Mycobrowser, KEGG, UniProt, STRING, AlphaFold, NCBI
-            and the original TB Genome Portal.</li>
+          <li>The checked-in source snapshot is compared against the official TB Genome Portal protein table by
+            <span className="mono"> npm run data:check</span> and by a scheduled GitHub Action.</li>
+          <li>External links resolve to live records at the original TB Genome Portal, Mycobrowser, KEGG, UniProt, STRING,
+            AlphaFold and NCBI.</li>
         </ul>
       </div>
 
       <div className="section">
-        <SectionTitle>What's representative</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="representative" />}>What's representative</SectionTitle>
         <p className="dim">
           Essentiality calls, transcriptional fold-changes, TnSeq fitness, protein biophysics, vulnerability index and
           selection statistics are <b>generated deterministically</b> from each gene. They are seeded from real properties
