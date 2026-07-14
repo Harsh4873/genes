@@ -1,0 +1,20 @@
+{
+  "name": "MtbScope — TB Genome Portal",
+  "short_name": "MtbScope",
+  "description": "A fast, comparison-first browser for the Mycobacterium tuberculosis H37Rv genome.",
+  "id": "/genes/",
+  "start_url": "/genes/",
+  "scope": "/genes/",
+  "display": "standalone",
+  "background_color": "#0a0e13",
+  "theme_color": "#0d9488",
+  "categories": ["education", "science", "reference"],
+  "icons": [
+    {
+      "src": "/genes/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
