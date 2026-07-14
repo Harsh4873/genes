@@ -1,0 +1,85 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check types
+        run: npm run typecheck
+
+      - name: Build site
+        run: npm run build
+
+      - name: Verify Pages artifact
+        run: |
+          node --input-type=module <<'NODE'
+          import { existsSync, readFileSync } from 'node:fs';
+
+          const required = [
+            'dist/index.html',
+            'dist/favicon.svg',
+            'dist/manifest.webmanifest',
+            'dist/data/genes.json',
+          ];
+          for (const path of required) {
+            if (!existsSync(path)) throw new Error(`Missing Pages artifact: ${path}`);
+          }
+
+          const html = readFileSync('dist/index.html', 'utf8');
+          if (!html.includes('/genes/assets/')) throw new Error('Built assets do not use the /genes/ base.');
+          if (!html.includes('/genes/manifest.webmanifest')) throw new Error('Manifest link does not use /genes/.');
+
+          const manifest = JSON.parse(readFileSync('dist/manifest.webmanifest', 'utf8'));
+          for (const field of ['id', 'start_url', 'scope']) {
+            if (manifest[field] !== '/genes/') throw new Error(`Manifest ${field} must be /genes/.`);
+          }
+
+          const dataset = JSON.parse(readFileSync('dist/data/genes.json', 'utf8'));
+          if (dataset.count !== 4018 || dataset.genes?.length !== 4018) {
+            throw new Error('The complete 4,018-gene catalog was not published.');
+          }
+          NODE
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
