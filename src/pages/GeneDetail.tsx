@@ -15,9 +15,20 @@ import {
   ExpressionBars,
   ExpressionHighlights,
   GenomeContext,
+  OmegaPlot,
   PropertyBars,
+  TmhmmPlot,
   TnSeqSketch,
 } from '../components/Charts';
+import { PortalFigure } from '../components/PortalFigure';
+import {
+  portalGenePage,
+  portalGenomegaMapPaperUrl,
+  portalOmegaCollectionUrl,
+  portalOmegaPlotUrl,
+  portalTmhmmUrl,
+  portalVariantsUrl,
+} from '../lib/portalPlots';
 
 const ESS_CALL_CLASS: Record<string, string> = {
   essential: 'ess-essential', 'growth-defect': 'ess-growth-defect', 'non-essential': 'ess-non-essential', uncertain: 'ess-uncertain', 'no-data': 'ess-no-data',
@@ -171,6 +182,101 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
               <GenomeContext neighbors={neighbors} focusOrf={gene.orf} onPick={(o) => navigate(`gene/${o}`)} />
               <div className="legend-row" style={{ marginTop: 8 }}>
                 <span className="faint" style={{ fontSize: 12 }}>Arrows show strand · select a neighbour to open it · coloured by functional class.</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Trans-membrane region (TMHMM)</SectionTitle>
+            <div className="card card-pad">
+              <p className="panel-note" style={{ marginTop: 0 }}>
+                Posterior probabilities for transmembrane, inside, and outside topology — the same TMHMM figure published on the
+                TB Genome Portal gene page.
+              </p>
+              <PortalFigure
+                src={portalTmhmmUrl(gene.orf)}
+                alt={`TMHMM posterior probabilities for ${gene.orf}`}
+                href={portalGenePage(gene.orf)}
+                fallback={<TmhmmPlot profile={d.tmhmm} orf={gene.orf} />}
+                caption={
+                  <span className="dim">
+                    Predicted topology: <b>{d.tmhmm.topology}</b>
+                    {d.tmhmm.transmembraneHelices ? <> · {d.tmhmm.transmembraneHelices} TM helix sketch in fallback</> : ' · no TM helices in fallback sketch'}
+                  </span>
+                }
+              />
+            </div>
+          </div>
+
+          <div>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Positive selection (GenomegaMap)</SectionTitle>
+            <div className="card card-pad">
+              <ul className="portal-bullets">
+                <li>
+                  Analysis of dN/dS (omega) in a global collection of ~10k Mtb clinical isolates using{' '}
+                  <a href={portalGenomegaMapPaperUrl()} target="_blank" rel="noopener noreferrer">GenomegaMap</a> (Window model).
+                </li>
+                <li>
+                  Clinical isolates collection:{' '}
+                  <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">global set of 10,626 Mtb genomes</a>.
+                </li>
+                <li>
+                  In the omega plots, the <b>black</b> line is the mean omega estimate at each codon; the <b>blue</b> lines are the
+                  95% credible interval. Significant positive selection requires the lower blue line to exceed 1.0 at any codon.
+                </li>
+              </ul>
+
+              <div className="table-wrap" style={{ marginTop: 12 }}>
+                <table className="table portal-summary-table">
+                  <thead>
+                    <tr>
+                      <th className="no-sort" colSpan={2}>
+                        <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">
+                          global set of 10,626 Mtb clinical isolates
+                        </a>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ cursor: 'default' }}>
+                      <td>Under significant positive selection?</td>
+                      <td><b>{d.positiveSelection.underSelection ? 'YES' : 'NO'}</b> <SourceBadge kind="representative" compact /></td>
+                    </tr>
+                    <tr style={{ cursor: 'default' }}>
+                      <td>Omega peak height (95% CI lower bound)</td>
+                      <td className="tabnum">
+                        {d.positiveSelection.peakOmega} ({d.positiveSelection.peakLowerCi}) <SourceBadge kind="representative" compact />
+                      </td>
+                    </tr>
+                    <tr style={{ cursor: 'default' }}>
+                      <td>Codons under selection</td>
+                      <td className="tabnum">{d.positiveSelection.sites || <span className="faint">—</span>}</td>
+                    </tr>
+                    <tr style={{ cursor: 'default' }}>
+                      <td>Genetic variants</td>
+                      <td>
+                        <a href={portalVariantsUrl(gene.orf)} target="_blank" rel="noopener noreferrer">
+                          Open variants list <ExternalLink size={12} />
+                        </a>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <PortalFigure
+                  src={portalOmegaPlotUrl(gene.orf)}
+                  alt={`Omega dN/dS plot for ${gene.orf}`}
+                  href={portalOmegaPlotUrl(gene.orf)}
+                  fallback={<OmegaPlot series={d.positiveSelection.series} orf={gene.orf} />}
+                  caption={
+                    <span className="dim">
+                      Published GenomegaMap figure for {gene.orf}. Summary numbers above are representative until we bake portal
+                      stats into the catalog snapshot.
+                    </span>
+                  }
+                />
               </div>
             </div>
           </div>

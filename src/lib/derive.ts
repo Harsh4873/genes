@@ -201,6 +201,9 @@ export function derive(gene: Gene): DerivedGene {
     gene.category === 'pe-ppe' ? 0.32 : gene.category === 'cell-wall' ? 0.18 : gene.category === 'virulence' ? 0.16 : 0.08;
   const underSelection = rng.chance(psChance);
 
+  const tmhmm = buildTmhmm(gene, rng);
+  const omega = buildOmega(gene, rng, underSelection);
+
   const result: DerivedGene = {
     orf: gene.orf,
     essentiality: ess.call,
@@ -224,14 +227,110 @@ export function derive(gene: Gene): DerivedGene {
     module: (Math.abs(hashModule(gene.orf)) % 48) + 1,
     go,
     pathway: rng.pick(PATHWAY_POOLS[gene.category]),
-    positiveSelection: {
-      underSelection,
-      dnds: Number((underSelection ? rng.range(1.05, 2.6) : rng.range(0.05, 0.9)).toFixed(2)),
-      sites: underSelection ? rng.int(1, 8) : 0,
-    },
+    tmhmm,
+    positiveSelection: omega,
   };
   cache.set(gene.orf, result);
   return result;
+}
+
+function buildTmhmm(gene: Gene, rng: Rng): DerivedGene['tmhmm'] {
+  const lengthAa = Math.max(40, gene.length);
+  const membraneBias = gene.category === 'cell-wall' || gene.category === 'pe-ppe' || gene.category === 'lipid';
+  const helixCount = membraneBias ? rng.int(1, Math.min(8, Math.max(1, Math.floor(lengthAa / 55)))) : rng.chance(0.08) ? 1 : 0;
+  const helices: { start: number; end: number }[] = [];
+  if (helixCount > 0) {
+    const span = Math.max(20, Math.floor(lengthAa / (helixCount + 1)));
+    for (let i = 0; i < helixCount; i++) {
+      const start = clamp(Math.round((i + 0.35) * span + rng.range(-6, 6)), 5, lengthAa - 25);
+      const end = clamp(start + rng.int(18, 24), start + 15, lengthAa - 2);
+      helices.push({ start, end });
+    }
+  }
+
+  const topology: DerivedGene['tmhmm']['topology'] =
+    helixCount > 0 ? 'transmembrane' : rng.chance(0.55) ? 'outside' : 'inside';
+
+  // Downsample to keep SVG light while covering the full protein.
+  const steps = Math.min(160, Math.max(40, Math.round(lengthAa / 2)));
+  const series: DerivedGene['tmhmm']['series'] = [];
+  for (let i = 0; i <= steps; i++) {
+    const pos = Math.round((i / steps) * lengthAa);
+    const inHelix = helices.some((h) => pos >= h.start && pos <= h.end);
+    let transmembrane = inHelix ? 0.92 + rng.gauss() * 0.03 : Math.max(0, 0.02 + rng.gauss() * 0.02);
+    let outside: number;
+    let inside: number;
+    if (inHelix) {
+      outside = Math.max(0, 0.05 + rng.gauss() * 0.02);
+      inside = Math.max(0, 0.05 + rng.gauss() * 0.02);
+    } else if (topology === 'outside') {
+      outside = 0.75 + rng.gauss() * 0.04;
+      inside = 0.22 + rng.gauss() * 0.03;
+      transmembrane = Math.max(0, 0.02 + rng.gauss() * 0.015);
+    } else if (topology === 'inside') {
+      inside = 0.75 + rng.gauss() * 0.04;
+      outside = 0.22 + rng.gauss() * 0.03;
+      transmembrane = Math.max(0, 0.02 + rng.gauss() * 0.015);
+    } else {
+      // Mixed soluble flanks around TM helices.
+      const afterHelix = helices.some((h) => pos > h.end);
+      outside = afterHelix ? 0.55 + rng.gauss() * 0.05 : 0.35 + rng.gauss() * 0.05;
+      inside = 1 - outside - transmembrane;
+    }
+    const sum = Math.max(1e-6, transmembrane + inside + outside);
+    series.push({
+      pos,
+      transmembrane: Number(clamp(transmembrane / sum, 0, 1).toFixed(3)),
+      inside: Number(clamp(inside / sum, 0, 1).toFixed(3)),
+      outside: Number(clamp(outside / sum, 0, 1).toFixed(3)),
+    });
+  }
+
+  return { lengthAa, topology, transmembraneHelices: helixCount, series };
+}
+
+function buildOmega(gene: Gene, rng: Rng, underSelection: boolean): DerivedGene['positiveSelection'] {
+  const codons = Math.max(30, gene.length);
+  const steps = Math.min(120, Math.max(30, Math.round(codons / 2)));
+  const base = underSelection ? rng.range(0.35, 0.9) : rng.range(0.05, 0.35);
+  const peakAt = underSelection ? rng.range(0.25, 0.8) : rng.range(0.3, 0.7);
+  const peakAmp = underSelection ? rng.range(1.2, 3.8) : rng.range(0.2, 1.1);
+
+  const series: DerivedGene['positiveSelection']['series'] = [];
+  let peakOmega = 0;
+  let peakLowerCi = 0;
+  let sites = 0;
+
+  for (let i = 0; i <= steps; i++) {
+    const codon = Math.max(1, Math.round((i / steps) * codons));
+    const t = i / steps;
+    const bump = Math.exp(-Math.pow((t - peakAt) * 4.2, 2)) * peakAmp;
+    const noise = Math.abs(rng.gauss() * 0.08);
+    const mean = clamp(base + bump + noise, 0.01, 9.5);
+    const half = underSelection && bump > 0.8 ? rng.range(0.25, 0.7) : rng.range(0.08, 0.35);
+    const lower = clamp(mean - half, 0.001, mean);
+    const upper = clamp(mean + half * 1.4, mean, 10);
+    if (lower > 1) sites += 1;
+    if (mean > peakOmega) {
+      peakOmega = mean;
+      peakLowerCi = lower;
+    }
+    series.push({
+      codon,
+      mean: Number(mean.toFixed(3)),
+      lower: Number(lower.toFixed(3)),
+      upper: Number(upper.toFixed(3)),
+    });
+  }
+
+  return {
+    underSelection: underSelection || peakLowerCi > 1,
+    dnds: Number(peakOmega.toFixed(2)),
+    sites: underSelection ? Math.max(sites, rng.int(1, 6)) : sites,
+    peakOmega: Number(peakOmega.toFixed(2)),
+    peakLowerCi: Number(peakLowerCi.toFixed(2)),
+    series,
+  };
 }
 
 function hashModule(orf: string): number {

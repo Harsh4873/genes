@@ -119,9 +119,21 @@ export interface DerivedGene {
   module: number; // co-expression module id
   go: string[];
   pathway: string;
+  /** TMHMM-style topology profile used when the portal GIF is unavailable. */
+  tmhmm: {
+    lengthAa: number;
+    /** Predicted topology segments along the sequence. */
+    topology: 'inside' | 'outside' | 'transmembrane';
+    transmembraneHelices: number;
+    series: { pos: number; transmembrane: number; inside: number; outside: number }[];
+  };
   positiveSelection: {
     underSelection: boolean;
     dnds: number;
     sites: number;
+    peakOmega: number;
+    peakLowerCi: number;
+    /** Codon-wise omega mean + 95% CI for the GenomegaMap-style plot. */
+    series: { codon: number; mean: number; lower: number; upper: number }[];
   };
 }

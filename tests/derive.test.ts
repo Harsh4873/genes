@@ -44,4 +44,12 @@ describe('derive', () => {
     expect(d.tnseq.saturation).toBeLessThanOrEqual(1);
     expect(d.protein.mwKda).toBeGreaterThan(0);
   });
+
+  it('emits TMHMM and omega series for portal-style plots', () => {
+    const d = derive(g('Rv0009', 'ppiA', 'information', 182));
+    expect(d.tmhmm.series.length).toBeGreaterThan(10);
+    expect(d.positiveSelection.series.length).toBeGreaterThan(10);
+    expect(d.tmhmm.series.every((p) => p.transmembrane + p.inside + p.outside <= 1.01)).toBe(true);
+    expect(d.positiveSelection.series.every((p) => p.lower <= p.mean && p.mean <= p.upper)).toBe(true);
+  });
 });
