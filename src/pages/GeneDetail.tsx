@@ -1,70 +1,43 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { ArrowLeft, ArrowRight, Columns3, Check, Plus, ExternalLink, Link2, TriangleAlert } from 'lucide-react';
-import type { Dataset, Gene } from '../lib/types';
+import type { Dataset } from '../lib/types';
 import { category } from '../lib/categories';
-import { derive } from '../lib/derive';
 import { EXTERNAL_LINKS } from '../lib/external';
-import { href, navigate } from '../lib/router';
-import { fmtCoord, fmtInt, fmtSigned } from '../lib/format';
+import { href } from '../lib/router';
+import { fmtCoord, fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
-import { CategoryTag, EssentialityBadge, Provenance, SectionTitle, SourceBadge, StrandBadge } from '../components/common';
-import {
-  ChromosomeLocus,
-  EssentialityConsensus,
-  EssentialityDots,
-  ExpressionBars,
-  ExpressionHighlights,
-  GenomeContext,
-  OmegaPlot,
-  PropertyBars,
-  TmhmmPlot,
-  TnSeqSketch,
-} from '../components/Charts';
+import { annotationRows, formatPnps } from '../lib/portalEnrichment';
+import { usePortalEnrichment } from '../lib/usePortalEnrichment';
+import { CategoryTag, Provenance, SectionTitle, SourceBadge, StrandBadge } from '../components/common';
+import { OmegaPlot, TmhmmPlot } from '../components/Charts';
 import { PortalFigure } from '../components/PortalFigure';
+import { derive } from '../lib/derive';
 import {
   portalGenePage,
   portalGenomegaMapPaperUrl,
   portalOmegaCollectionUrl,
   portalOmegaPlotUrl,
+  portalOperonUrl,
   portalTmhmmUrl,
   portalVariantsUrl,
 } from '../lib/portalPlots';
 
-const ESS_CALL_CLASS: Record<string, string> = {
-  essential: 'ess-essential', 'growth-defect': 'ess-growth-defect', 'non-essential': 'ess-non-essential', uncertain: 'ess-uncertain', 'no-data': 'ess-no-data',
-};
+function formatSequence(seq: string): string {
+  return seq.match(/.{1,60}/g)?.join('\n') ?? seq;
+}
 
 export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) {
   const gene = dataset.byOrf.get(orf);
   const compare = useCompare();
   const [copied, setCopied] = useState(false);
+  const { enrichment, loading } = usePortalEnrichment(gene?.orf);
 
   const geneIndex = useMemo(
     () => (gene ? dataset.genes.findIndex((g) => g.orf === gene.orf) : -1),
     [dataset, gene],
   );
-
-  const neighbors = useMemo(() => {
-    if (geneIndex < 0) return [];
-    return dataset.genes.slice(Math.max(0, geneIndex - 4), geneIndex + 5);
-  }, [dataset, geneIndex]);
-
   const prevGene = geneIndex > 0 ? dataset.genes[geneIndex - 1] : null;
   const nextGene = geneIndex >= 0 && geneIndex < dataset.genes.length - 1 ? dataset.genes[geneIndex + 1] : null;
-
-  const genomeEnd = useMemo(() => Math.max(...dataset.genes.map((g) => g.end)), [dataset]);
-
-  const modulePeers = useMemo(() => {
-    if (!gene) return [] as Gene[];
-    const moduleId = derive(gene).module;
-    const peers: Gene[] = [];
-    for (const g of dataset.genes) {
-      if (g.orf === gene.orf) continue;
-      if (derive(g).module === moduleId) peers.push(g);
-      if (peers.length >= 6) break;
-    }
-    return peers;
-  }, [dataset, gene]);
 
   if (!gene) {
     return (
@@ -83,7 +56,12 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const inCompare = compareStore.has(gene.orf);
   const c = category(gene.category);
   const portalHref = EXTERNAL_LINKS.find((l) => l.id === 'tbportal')?.href(gene.orf, gene.gene);
-  const topExpr = [...d.expression].sort((a, b) => Math.abs(b.log2fc) - Math.abs(a.log2fc))[0];
+  const ann = annotationRows(enrichment, gene.annotation);
+  const underSelection = enrichment?.underSelection ?? (enrichment?.omegaLower !== undefined ? enrichment.omegaLower > 1 : d.positiveSelection.underSelection);
+  const peak = enrichment?.omegaPeak ?? d.positiveSelection.peakOmega;
+  const peakLower = enrichment?.omegaLower ?? d.positiveSelection.peakLowerCi;
+  const sequence = enrichment?.sequence;
+  const pnps = enrichment?.pnps;
 
   const copyLink = () => {
     navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/gene/${gene.orf}`).then(() => {
@@ -118,8 +96,6 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
             <CategoryTag id={gene.category} />
             <span className="faint">·</span>
-            <EssentialityBadge call={d.essentiality} />
-            <span className="faint">·</span>
             <span className="dim" style={{ fontSize: 13 }}>{c.label}</span>
           </div>
           <h1 className="mono"><span>{gene.orf}</span>{gene.gene ? <span className="sym">{gene.gene}</span> : null}</h1>
@@ -137,31 +113,7 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
 
       <div className="source-strip" aria-label="Data source summary">
         <SourceBadge kind="reference" />
-        <span className="dim">Catalog fields, coordinates, class and external links.</span>
-        <SourceBadge kind="representative" />
-        <span className="dim">Charts, fitness, protein, GO terms and pathway summaries.</span>
-      </div>
-
-      <div className="quick-facts" aria-label="Quick facts">
-        <div className="quick-fact">
-          <span className="qf-lab">Locus</span>
-          <span className="qf-val mono">{fmtCoord(gene.start)}–{fmtCoord(gene.end)} <StrandBadge strand={gene.strand} /></span>
-        </div>
-        <div className="quick-fact">
-          <span className="qf-lab">Length</span>
-          <span className="qf-val">{fmtInt(gene.length)} aa · {fmtInt(gene.bp)} bp</span>
-        </div>
-        <div className="quick-fact">
-          <span className="qf-lab">Pathway</span>
-          <span className="qf-val">{d.pathway} <SourceBadge kind="representative" compact /></span>
-        </div>
-        <div className="quick-fact">
-          <span className="qf-lab">Top response</span>
-          <span className="qf-val">
-            {topExpr ? <>{topExpr.label} <span className="tabnum mono">{fmtSigned(topExpr.log2fc)}</span></> : '—'}
-            {' '}<SourceBadge kind="representative" compact />
-          </span>
-        </div>
+        <span className="dim">Annotations, coordinates, TMHMM, GenomegaMap plots, sequence and pN/pS from the portal snapshot.</span>
       </div>
 
       <div className="divider" />
@@ -169,41 +121,68 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
       <div className="detail-grid">
         <div style={{ display: 'grid', gap: 18 }}>
           <div>
-            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Chromosome locus</SectionTitle>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Current annotations</SectionTitle>
             <div className="card card-pad">
-              <ChromosomeLocus start={gene.start} end={gene.end} genomeEnd={genomeEnd} label={gene.gene ?? gene.orf} />
-              <p className="panel-note">Position on the circular H37Rv chromosome, shown as a linear map from origin to terminus.</p>
+              {loading && !enrichment ? <p className="dim">Loading portal annotations…</p> : null}
+              <dl className="kv">
+                <dt>TBCAP</dt>
+                <dd className="dim">
+                  <a href={`${portalGenePage(gene.orf)}#TBCAP`} target="_blank" rel="noopener noreferrer">
+                    Community annotations on portal <ExternalLink size={12} />
+                  </a>
+                </dd>
+                {ann.map((row) => (
+                  <Fragment key={row.source}>
+                    <dt>{row.source}</dt>
+                    <dd>{row.value}</dd>
+                  </Fragment>
+                ))}
+              </dl>
             </div>
           </div>
 
           <div>
-            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Genomic neighbourhood</SectionTitle>
-            <div className="card card-pad" style={{ overflowX: 'auto' }}>
-              <GenomeContext neighbors={neighbors} focusOrf={gene.orf} onPick={(o) => navigate(`gene/${o}`)} />
-              <div className="legend-row" style={{ marginTop: 8 }}>
-                <span className="faint" style={{ fontSize: 12 }}>Arrows show strand · select a neighbour to open it · coloured by functional class.</span>
-              </div>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Locus</SectionTitle>
+            <div className="card card-pad">
+              <dl className="kv">
+                <dt>Coordinates in H37Rv</dt>
+                <dd className="mono">{fmtCoord(gene.start)} – {fmtCoord(gene.end)} <StrandBadge strand={gene.strand} /></dd>
+                <dt>Gene length</dt>
+                <dd>{fmtInt(gene.bp)} bp (with stop) · {fmtInt(gene.length)} aa</dd>
+                <dt>Gene name</dt>
+                <dd>{gene.gene ?? <span className="faint">—</span>}</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div>
+            <SectionTitle aside={<SourceBadge kind="reference" compact />}>Operon</SectionTitle>
+            <div className="card card-pad">
+              <PortalFigure
+                src={portalOperonUrl(gene.orf).replace(/\.svg$/, '.png')}
+                alt={`Operon context for ${gene.orf}`}
+                href={portalGenePage(gene.orf)}
+                fallback={
+                  <img
+                    className="portal-figure-img"
+                    src={portalOperonUrl(gene.orf)}
+                    alt={`Operon SVG for ${gene.orf}`}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                }
+                caption={<span className="dim">Operon figure from the TB Genome Portal gene page.</span>}
+              />
             </div>
           </div>
 
           <div>
             <SectionTitle aside={<SourceBadge kind="reference" compact />}>Trans-membrane region (TMHMM)</SectionTitle>
             <div className="card card-pad">
-              <p className="panel-note" style={{ marginTop: 0 }}>
-                Posterior probabilities for transmembrane, inside, and outside topology — the same TMHMM figure published on the
-                TB Genome Portal gene page.
-              </p>
               <PortalFigure
                 src={portalTmhmmUrl(gene.orf)}
                 alt={`TMHMM posterior probabilities for ${gene.orf}`}
                 href={portalGenePage(gene.orf)}
                 fallback={<TmhmmPlot profile={d.tmhmm} orf={gene.orf} />}
-                caption={
-                  <span className="dim">
-                    Predicted topology: <b>{d.tmhmm.topology}</b>
-                    {d.tmhmm.transmembraneHelices ? <> · {d.tmhmm.transmembraneHelices} TM helix sketch in fallback</> : ' · no TM helices in fallback sketch'}
-                  </span>
-                }
               />
             </div>
           </div>
@@ -213,44 +192,23 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
             <div className="card card-pad">
               <ul className="portal-bullets">
                 <li>
-                  Analysis of dN/dS (omega) in a global collection of ~10k Mtb clinical isolates using{' '}
-                  <a href={portalGenomegaMapPaperUrl()} target="_blank" rel="noopener noreferrer">GenomegaMap</a> (Window model).
+                  dN/dS (omega) across{' '}
+                  <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">10,626 Mtb genomes</a>
+                  {' '}using{' '}
+                  <a href={portalGenomegaMapPaperUrl()} target="_blank" rel="noopener noreferrer">GenomegaMap</a>.
                 </li>
-                <li>
-                  Clinical isolates collection:{' '}
-                  <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">global set of 10,626 Mtb genomes</a>.
-                </li>
-                <li>
-                  In the omega plots, the <b>black</b> line is the mean omega estimate at each codon; the <b>blue</b> lines are the
-                  95% credible interval. Significant positive selection requires the lower blue line to exceed 1.0 at any codon.
-                </li>
+                <li>Significant positive selection only if the lower 95% CI exceeds 1.0 at any codon.</li>
               </ul>
-
               <div className="table-wrap" style={{ marginTop: 12 }}>
                 <table className="table portal-summary-table">
-                  <thead>
-                    <tr>
-                      <th className="no-sort" colSpan={2}>
-                        <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">
-                          global set of 10,626 Mtb clinical isolates
-                        </a>
-                      </th>
-                    </tr>
-                  </thead>
                   <tbody>
                     <tr style={{ cursor: 'default' }}>
                       <td>Under significant positive selection?</td>
-                      <td><b>{d.positiveSelection.underSelection ? 'YES' : 'NO'}</b> <SourceBadge kind="representative" compact /></td>
+                      <td><b>{underSelection ? 'YES' : 'NO'}</b></td>
                     </tr>
                     <tr style={{ cursor: 'default' }}>
                       <td>Omega peak height (95% CI lower bound)</td>
-                      <td className="tabnum">
-                        {d.positiveSelection.peakOmega} ({d.positiveSelection.peakLowerCi}) <SourceBadge kind="representative" compact />
-                      </td>
-                    </tr>
-                    <tr style={{ cursor: 'default' }}>
-                      <td>Codons under selection</td>
-                      <td className="tabnum">{d.positiveSelection.sites || <span className="faint">—</span>}</td>
+                      <td className="tabnum">{peak} ({peakLower})</td>
                     </tr>
                     <tr style={{ cursor: 'default' }}>
                       <td>Genetic variants</td>
@@ -263,65 +221,14 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
                   </tbody>
                 </table>
               </div>
-
               <div style={{ marginTop: 14 }}>
                 <PortalFigure
                   src={portalOmegaPlotUrl(gene.orf)}
                   alt={`Omega dN/dS plot for ${gene.orf}`}
                   href={portalOmegaPlotUrl(gene.orf)}
                   fallback={<OmegaPlot series={d.positiveSelection.series} orf={gene.orf} />}
-                  caption={
-                    <span className="dim">
-                      Published GenomegaMap figure for {gene.orf}. Summary numbers above are representative until we bake portal
-                      stats into the catalog snapshot.
-                    </span>
-                  }
                 />
               </div>
-            </div>
-          </div>
-
-          <div>
-            <SectionTitle aside={<><SourceBadge kind="representative" compact /><EssentialityDots rows={d.essentialityRows} /></>}>Essentiality</SectionTitle>
-            <div className="card card-pad" style={{ marginBottom: 10 }}>
-              <EssentialityConsensus rows={d.essentialityRows} />
-              <p className="panel-note">
-                Consensus <b className={`ess ${ESS_CALL_CLASS[d.essentiality]}`}>{d.essentiality}</b> from {d.essentialityRows.length} study-style
-                panels · {Math.round(d.essentialityConfidence * 100)}% agreement. These calls are representative, not measured for this build.
-              </p>
-            </div>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr><th className="no-sort">Study</th><th className="no-sort">Condition</th><th className="no-sort">Medium</th><th className="no-sort">Method</th><th className="no-sort">Call</th></tr>
-                </thead>
-                <tbody>
-                  {d.essentialityRows.map((r) => (
-                    <tr key={r.datasetId} style={{ cursor: 'default' }}>
-                      <td style={{ fontWeight: 600 }}>{r.ref}</td>
-                      <td className="dim">{r.condition}</td>
-                      <td className="dim">{r.medium}</td>
-                      <td className="mono dim" style={{ fontSize: 12.5 }}>{r.method}</td>
-                      <td><span className={`ess ${ESS_CALL_CLASS[r.call]}`} style={{ gap: 5 }}><span className="dot dot-round" style={{ background: 'currentColor', width: 8, height: 8 }} />{r.call}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <SectionTitle aside={<><SourceBadge kind="representative" compact /><span className="heat-legend"><span>down</span><span className="heat-bar" /><span>up</span></span></>}>
-              Transcriptional response
-            </SectionTitle>
-            <div className="card card-pad">
-              <ExpressionHighlights points={d.expression} />
-              <div className="divider" style={{ margin: '14px 0' }} />
-              <ExpressionBars points={d.expression} />
-              <p className="panel-note">
-                log₂ fold-change vs exponential-phase reference across stress, growth-state, host and drug conditions.
-                Group headers mark the biological axis; values are demonstration profiles seeded from this ORF.
-              </p>
             </div>
           </div>
         </div>
@@ -329,86 +236,44 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
         <div style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
           <div className="card card-pad">
             <div className="card-title-row">
-              <h4>Catalog record</h4>
+              <h4>pN/pS (Culviner et al.)</h4>
               <SourceBadge kind="reference" compact />
             </div>
-            <dl className="kv">
-              <dt>Locus</dt><dd className="mono">{gene.orf}</dd>
-              <dt>Symbol</dt><dd>{gene.gene ?? <span className="faint">unnamed</span>}</dd>
-              <dt>Class</dt><dd>{c.label}</dd>
-              <dt>Location</dt><dd className="mono">{fmtCoord(gene.start)}–{fmtCoord(gene.end)} <StrandBadge strand={gene.strand} /></dd>
-              <dt>Length</dt><dd>{fmtInt(gene.length)} aa · {fmtInt(gene.bp)} bp</dd>
-            </dl>
+            {pnps ? (
+              <dl className="kv">
+                <dt>Overall</dt><dd className="tabnum">{formatPnps(pnps.overall)}</dd>
+                <dt>Lineage L1</dt><dd className="tabnum">{formatPnps(pnps.L1)}</dd>
+                <dt>Lineage L2</dt><dd className="tabnum">{formatPnps(pnps.L2)}</dd>
+                <dt>Lineage L3</dt><dd className="tabnum">{formatPnps(pnps.L3)}</dd>
+                <dt>Lineage L4</dt><dd className="tabnum">{formatPnps(pnps.L4)}</dd>
+              </dl>
+            ) : (
+              <p className="dim" style={{ margin: 0, fontSize: 13.5 }}>
+                {loading ? 'Loading lineage pN/pS…' : 'pN/pS not in the local enrichment snapshot yet — open the TB Portal gene page.'}
+              </p>
+            )}
           </div>
 
           <div className="card card-pad">
             <div className="card-title-row">
-              <h4>Pathway context</h4>
-              <SourceBadge kind="representative" compact />
+              <h4>Amino acid sequence</h4>
+              <SourceBadge kind="reference" compact />
             </div>
-            <dl className="kv">
-              <dt>Pathway</dt><dd>{d.pathway}</dd>
-              <dt>Co-expr. module</dt><dd>#{d.module}</dd>
-              <dt>Vulnerability</dt><dd className="tabnum">{d.vulnerability}</dd>
-            </dl>
-            {modulePeers.length ? (
-              <div style={{ marginTop: 12 }}>
-                <div className="dim" style={{ fontSize: 12, marginBottom: 6 }}>Other genes in module #{d.module}</div>
-                <div className="peer-chips">
-                  {modulePeers.map((g) => (
-                    <a key={g.orf} className="chip" href={href(`gene/${g.orf}`)} title={g.annotation}>
-                      <span className="mono">{g.orf}</span>
-                      {g.gene ? <span style={{ color: 'var(--accent-strong)' }}>{g.gene}</span> : null}
+            {sequence ? (
+              <pre className="seq">{formatSequence(sequence)}</pre>
+            ) : (
+              <p className="dim" style={{ margin: 0, fontSize: 13.5 }}>
+                {loading ? 'Loading sequence…' : (
+                  <>
+                    Sequence not cached locally.{' '}
+                    <a href={`https://www.genome.jp/dbget-bin/www_bget?mtu:${gene.orf}`} target="_blank" rel="noopener noreferrer">
+                      Open on KEGG <ExternalLink size={12} />
                     </a>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="card card-pad">
-            <div className="card-title-row">
-              <h4>Fitness & protein</h4>
-              <SourceBadge kind="representative" compact />
-            </div>
-            <div className="metric-grid">
-              <div className="metric"><div className="m-num tabnum">{d.tnseq.taSites}</div><div className="m-lab">TA sites</div></div>
-              <div className="metric"><div className="m-num tabnum">{d.tnseq.meanInsertions}</div><div className="m-lab">mean insertions</div></div>
-              <div className="metric"><div className="m-num tabnum">≈{d.protein.mwKda}</div><div className="m-lab">kDa</div></div>
-              <div className="metric"><div className="m-num tabnum">{d.protein.pI}</div><div className="m-lab">pI</div></div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <div className="dim" style={{ fontSize: 12, marginBottom: 6 }}>TnSeq insertion sketch</div>
-              <TnSeqSketch saturation={d.tnseq.saturation} taSites={d.tnseq.taSites} essential={d.essentiality === 'essential'} />
-              <PropertyBars
-                items={[
-                  { label: 'TnSeq saturation', value: d.tnseq.saturation, display: `${Math.round(d.tnseq.saturation * 100)}%` },
-                  { label: 'Vulnerability index', value: d.vulnerability, color: 'var(--danger)', display: String(d.vulnerability) },
-                  {
-                    label: 'Hydropathy (GRAVY)',
-                    value: (d.protein.gravy + 1.4) / 2.8,
-                    display: String(d.protein.gravy),
-                    color: 'var(--accent-strong)',
-                  },
-                ]}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-              <span className="badge" style={{ background: 'var(--panel-2)', color: 'var(--text-dim)' }}>AlphaFold: {d.protein.alphaFold}</span>
-              <span className="badge" style={{ background: 'var(--panel-2)', color: 'var(--text-dim)' }}>{d.protein.pdbHomolog ? 'PDB homolog available' : 'No close PDB homolog'}</span>
-              {d.positiveSelection.underSelection ? <span className="badge" style={{ background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>Positive selection · dN/dS {d.positiveSelection.dnds}</span> : null}
-            </div>
-            <p className="panel-note">Sparse TnSeq bars usually track essential genes; dense bars track insertable, non-essential loci.</p>
-          </div>
-
-          <div className="card card-pad">
-            <div className="card-title-row">
-              <h4>GO terms</h4>
-              <SourceBadge kind="representative" compact />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {d.go.map((g) => <span key={g} className="mono dim" style={{ fontSize: 12.5 }}>{g}</span>)}
-            </div>
+                  </>
+                )}
+              </p>
+            )}
+            <p className="panel-note">Nucleotide sequence is available on KEGG from the portal gene page.</p>
           </div>
 
           <div className="card card-pad">
@@ -430,10 +295,9 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
 
       <div className="section">
         <Provenance>
-          The catalog record above (locus, symbol, coordinates, length, product) is from the H37Rv reference annotation. The
-          essentiality calls, transcriptional response, TnSeq fitness, and protein biophysics are <b>representative demonstration
-          data</b> generated deterministically from this gene — realistic and stable, but not experimental measurements. Follow the
-          external links for curated primary data.
+          This page mirrors the portal fields most useful for annotation lookup: multi-source product names, locus, operon,
+          TMHMM, GenomegaMap omega plots, lineage pN/pS, and protein sequence. Representative demo panels (expression heatmaps,
+          synthetic essentiality tables) have been removed.
         </Provenance>
       </div>
     </div>

@@ -1,5 +1,4 @@
 import { ExternalLink } from 'lucide-react';
-import { href } from '../lib/router';
 import { SectionTitle, SourceBadge } from '../components/common';
 
 export function About() {
@@ -7,56 +6,37 @@ export function About() {
     <div className="container" style={{ maxWidth: 820 }}>
       <h1 style={{ fontSize: 26 }}>About MtbScope</h1>
       <p className="dim" style={{ fontSize: 16, marginTop: 8 }}>
-        MtbScope is a faster, comparison-first reimagining of the <a href="https://orca2.tamu.edu/U19/" target="_blank" rel="noopener noreferrer">TB Genome
-        Portal <ExternalLink size={12} /></a> — an annotation resource for the <i>Mycobacterium tuberculosis</i> H37Rv genome. It
-        keeps the portal's core idea (one page per gene, linking essentiality, expression and structural evidence) while adding
-        instant search, multi-facet browsing, and a side-by-side panel for four or more genes at once.
+        MtbScope is a leaner mirror of the <a href="https://orca2.tamu.edu/U19/" target="_blank" rel="noopener noreferrer">TB Genome
+        Portal <ExternalLink size={12} /></a> for <i>Mycobacterium tuberculosis</i> H37Rv. It keeps the fields people actually look
+        up — multi-source annotations, locus, operon, TMHMM, GenomegaMap omega plots, lineage pN/pS, and protein sequence — and
+        adds fast search plus a side-by-side compare view.
       </p>
 
       <div className="section">
-        <SectionTitle aside={<SourceBadge kind="reference" />}>What's real</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="reference" />}>What's on each gene page</SectionTitle>
         <ul style={{ lineHeight: 1.75, color: 'var(--text-dim)', paddingLeft: 20 }}>
-          <li>The complete catalog of <b>4,018 protein-coding genes</b> — locus (Rv id), gene symbol, genomic coordinates,
-            strand, protein length and product description — from the H37Rv reference annotation.</li>
-          <li>The checked-in source snapshot is compared against the official TB Genome Portal protein table by
-            <span className="mono"> npm run data:check</span> and by a scheduled GitHub Action.</li>
-          <li>External links resolve to live records at the original TB Genome Portal, Mycobrowser, KEGG, UniProt, STRING,
-            AlphaFold and NCBI.</li>
+          <li>Product annotations from TBDB, RefSeq, PATRIC, TubercuList and NCBI (scraped from the portal gene pages).</li>
+          <li>Coordinates, length, operon figure, TMHMM topology GIF and GenomegaMap omega PNG from the published portal assets.</li>
+          <li>Culviner lineage pN/pS values and amino-acid sequence from the portal enrichment snapshot.</li>
+          <li>Working links to variants, the 10k-genome collection, Mycobrowser, KEGG, UniProt and the original portal page.</li>
         </ul>
       </div>
 
       <div className="section">
-        <SectionTitle aside={<SourceBadge kind="representative" />}>What's representative</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="representative" />}>What we dropped</SectionTitle>
         <p className="dim">
-          Essentiality calls, transcriptional fold-changes, TnSeq fitness, protein biophysics, vulnerability index and
-          selection statistics are <b>generated deterministically</b> from each gene. They are seeded from real properties
-          (functional class, protein length, and a few well-established essentiality calls) so patterns are biologically
-          plausible and identical every time you load a gene — but they are demonstration data, not experimental measurements.
-          Panels that show generated data are labelled as such.
-        </p>
-        <p className="dim">
-          Functional classes are assigned by a transparent keyword heuristic over the annotation, approximating the curated
-          TubercuList categories rather than reproducing them exactly.
+          Synthetic expression heatmaps, hypoxia panels, demo essentiality tables and other representative analytics are no
+          longer shown on gene or compare pages. If a published plot image fails to load, a local TMHMM/omega SVG sketch is
+          shown as a labelled fallback only.
         </p>
       </div>
 
       <div className="section">
         <SectionTitle>How it's built</SectionTitle>
         <p className="dim">
-          A dependency-light React + TypeScript single-page app. The gene catalog loads once as a static JSON asset and all
-          search, filtering, comparison and charts run in the browser — no backend, no tracking. Charts are hand-drawn SVG so
-          they stay crisp in light and dark themes. Press <span className="kbd">/</span> anywhere to search; the comparison set
-          is saved locally and encoded in the URL so it can be shared.
-        </p>
-        <a className="btn btn-primary" href={href('compare')} style={{ marginTop: 8 }}>Open the comparison panel</a>
-      </div>
-
-      <div className="section">
-        <SectionTitle>Credit</SectionTitle>
-        <p className="dim">
-          Original portal and annotation curation by the TB Genome Portal team (Texas A&amp;M, Harvard, Weill Cornell, UMass,
-          Broad Institute; NIH U19 AI107774 / P01 AI143575). H37Rv annotation via Mycobrowser (EPFL). This is an independent
-          educational reimplementation of the interface and is not affiliated with those groups.
+          Static React + TypeScript app. The catalog and portal enrichment load as JSON; search, browse and compare run in the
+          browser. Refresh the catalog with <span className="mono">npm run data:refresh</span> and re-scrape portal gene pages
+          with <span className="mono">npm run data:enrich</span>.
         </p>
       </div>
     </div>

@@ -1,15 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
-import { X, Share2, Trash2, Plus, Check, Columns3, ExternalLink } from 'lucide-react';
-import type { Dataset, Gene, DerivedGene } from '../lib/types';
-import { category } from '../lib/categories';
-import { CONDITIONS } from '../lib/conditions';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { X, Share2, Trash2, Check, Columns3, ExternalLink } from 'lucide-react';
+import type { Dataset, Gene } from '../lib/types';
 import { derive } from '../lib/derive';
 import { href, replaceRoute, useRoute } from '../lib/router';
-import { fmtCoord, fmtInt, fmtSigned } from '../lib/format';
+import { fmtCoord, fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
+import { annotationRows, formatPnps, loadPortalEnrichment, type PortalGeneEnrichment } from '../lib/portalEnrichment';
 import { GeneSearch } from '../components/GeneSearch';
-import { CategoryTag, EssentialityBadge, SourceBadge } from '../components/common';
-import { EssentialityDots, Meter, exprOverlay } from '../components/Charts';
+import { CategoryTag, SourceBadge } from '../components/common';
+import { OmegaPlot, TmhmmPlot } from '../components/Charts';
+import { PortalFigure } from '../components/PortalFigure';
+import {
+  portalGenePage,
+  portalOmegaPlotUrl,
+  portalTmhmmUrl,
+  portalVariantsUrl,
+} from '../lib/portalPlots';
 
 const PRESETS: { name: string; desc: string; orfs: string[] }[] = [
   { name: 'First-line drug targets', desc: 'rpoB · katG · inhA · gyrA · embB', orfs: ['Rv0667', 'Rv1908c', 'Rv1484', 'Rv0006', 'Rv3795'] },
@@ -17,20 +23,11 @@ const PRESETS: { name: string; desc: string; orfs: string[] }[] = [
   { name: 'ESX-1 secretion system', desc: 'esxA · esxB · eccD1 · espI · Rv3870', orfs: ['Rv3875', 'Rv3874', 'Rv3877', 'Rv3876', 'Rv3870'] },
 ];
 
-function HeatBox({ v }: { v: number }) {
-  const o = exprOverlay(v);
-  return (
-    <div title={`${fmtSigned(v)} log₂FC`} style={{ position: 'relative', height: 30, borderRadius: 6, background: 'var(--panel-2)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, background: o.color, opacity: o.opacity }} />
-      <span style={{ position: 'relative', fontSize: 11.5, fontWeight: 650, fontVariantNumeric: 'tabular-nums', color: Math.abs(v) > 2.4 ? '#fff' : 'var(--text)' }}>{fmtSigned(v)}</span>
-    </div>
-  );
-}
-
 export function Compare({ dataset }: { dataset: Dataset }) {
   const route = useRoute();
   const compare = useCompare();
   const [copied, setCopied] = useState(false);
+  const [enrichment, setEnrichment] = useState<Map<string, PortalGeneEnrichment>>(new Map());
 
   const canonicalGenes = (orfs: string[]) => {
     const unique: string[] = [];
@@ -66,11 +63,14 @@ export function Compare({ dataset }: { dataset: Dataset }) {
     replaceRoute(routePathForGenes(compare));
   }, [compare, route.params.genes]);
 
+  useEffect(() => {
+    loadPortalEnrichment().then(setEnrichment);
+  }, []);
+
   const genes = useMemo(
     () => compare.map((o) => dataset.byOrf.get(o)).filter((g): g is Gene => Boolean(g)),
     [compare, dataset],
   );
-  const derived = useMemo(() => new Map<string, DerivedGene>(genes.map((g) => [g.orf, derive(g)])), [genes]);
 
   const share = () => {
     const url = `${location.origin}${location.pathname}#/${routePathForGenes(compare)}`;
@@ -82,8 +82,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
       <div className="container">
         <h1 style={{ fontSize: 26, display: 'flex', alignItems: 'center', gap: 10 }}><Columns3 size={24} style={{ color: 'var(--accent)' }} /> Comparison panel</h1>
         <p className="dim" style={{ maxWidth: '62ch', marginTop: 6 }}>
-          Pin up to {compareStore.max} genes to read their essentiality, transcriptional response, fitness and protein data in
-          aligned columns. Search below, or start from a curated set.
+          Pin genes side by side to compare annotations, locus, TMHMM, GenomegaMap omega plots, pN/pS and sequence.
         </p>
         <div className="card card-pad" style={{ maxWidth: 560, marginTop: 16 }}>
           <GeneSearch genes={dataset.genes} variant="hero" placeholder="Add a gene - katG, Rv0667, gyrase..." onPick={(g) => setCompared([...compare, g.orf])} />
@@ -103,14 +102,12 @@ export function Compare({ dataset }: { dataset: Dataset }) {
     );
   }
 
-  const cols = `170px repeat(${genes.length}, minmax(240px, 1fr))`;
-
-  // A labelled row: sticky label cell + one rendered cell per gene.
-  const Row = ({ label, kind = 'reference', render, tall }: { label: string; kind?: 'reference' | 'representative'; render: (g: Gene, d: DerivedGene) => React.ReactNode; tall?: boolean }) => (
+  const cols = `150px repeat(${genes.length}, minmax(260px, 1fr))`;
+  const Row = ({ label, render, tall }: { label: string; render: (g: Gene, e: PortalGeneEnrichment | undefined) => ReactNode; tall?: boolean }) => (
     <>
-      <div className="cmp-rowlabel"><span className="cmp-label-stack"><span>{label}</span><SourceBadge kind={kind} compact /></span></div>
+      <div className="cmp-rowlabel"><span className="cmp-label-stack"><span>{label}</span><SourceBadge kind="reference" compact /></span></div>
       {genes.map((g) => (
-        <div key={g.orf} className="cmp-cell" style={tall ? { minHeight: 46 } : undefined}>{render(g, derived.get(g.orf)!)}</div>
+        <div key={g.orf} className="cmp-cell" style={tall ? { minHeight: 46 } : undefined}>{render(g, enrichment.get(g.orf))}</div>
       ))}
     </>
   );
@@ -130,17 +127,8 @@ export function Compare({ dataset }: { dataset: Dataset }) {
         </div>
       </div>
 
-      {compare.length >= compareStore.max ? (
-        <p className="dim" style={{ fontSize: 12.5, marginTop: 8 }}>Maximum of {compareStore.max} genes reached — remove one to add another.</p>
-      ) : null}
-
-      <div className="heat-legend" style={{ marginTop: 12 }}>
-        <span>Transcription: down</span><span className="heat-bar" /><span>up (log₂ fold-change)</span>
-      </div>
-
-      <div className="compare-board card" style={{ marginTop: 10 }}>
+      <div className="compare-board card" style={{ marginTop: 14 }}>
         <div className="compare-grid" style={{ gridTemplateColumns: cols }}>
-          {/* Header */}
           <div className="cmp-rowlabel" style={{ background: 'var(--panel)', position: 'sticky', top: 56, left: 0, zIndex: 6 }} />
           {genes.map((g) => (
             <div key={g.orf} className="cmp-header" style={{ position: 'sticky', top: 56, zIndex: 5 }}>
@@ -151,49 +139,83 @@ export function Compare({ dataset }: { dataset: Dataset }) {
             </div>
           ))}
 
-          <Row label="Product" render={(g) => <span style={{ fontSize: 13, lineHeight: 1.4 }}>{g.annotation}</span>} tall />
-          <Row label="Essentiality" kind="representative" render={(_, d) => (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <EssentialityBadge call={d.essentiality} />
-              <EssentialityDots rows={d.essentialityRows} />
-              <span className="faint" style={{ fontSize: 11.5 }}>{Math.round(d.essentialityConfidence * 100)}% study agreement</span>
+          <Row label="Product" tall render={(g, e) => {
+            const rows = annotationRows(e, g.annotation);
+            const primary = rows.find((r) => r.source === 'TUBERCULIST') ?? rows[0];
+            return <span style={{ fontSize: 13, lineHeight: 1.4 }}>{primary?.value ?? g.annotation}</span>;
+          }} />
+          <Row label="Annotations" tall render={(g, e) => (
+            <div className="cmp-ann-list">
+              {annotationRows(e, g.annotation).map((row) => (
+                <div key={row.source}><span className="faint">{row.source}</span> {row.value}</div>
+              ))}
             </div>
           )} />
           <Row label="Location" render={(g) => <span className="mono" style={{ fontSize: 12.5 }}>{fmtCoord(g.start)}–{fmtCoord(g.end)} {g.strand}</span>} />
-          <Row label="Length" render={(g) => <span className="tabnum">{fmtInt(g.length)} aa</span>} />
-          <Row label="Protein" kind="representative" render={(_, d) => <span className="tabnum dim" style={{ fontSize: 13 }}>≈{d.protein.mwKda} kDa · pI {d.protein.pI}</span>} />
-          <Row label="TnSeq saturation" kind="representative" render={(_, d) => <div><Meter value={d.tnseq.saturation} label="TnSeq saturation" /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{Math.round(d.tnseq.saturation * 100)}% · {d.tnseq.taSites} TA</span></div>} />
-          <Row label="Vulnerability" kind="representative" render={(_, d) => <div><Meter value={d.vulnerability} color="var(--danger)" label="Vulnerability index" /><span className="faint tabnum" style={{ fontSize: 11.5 }}>{d.vulnerability}</span></div>} />
-          <Row label="Pathway" kind="representative" render={(_, d) => <span className="dim" style={{ fontSize: 12.5 }}>{d.pathway}</span>} />
-          <Row label="Module" kind="representative" render={(_, d) => <span className="dim">#{d.module}</span>} />
+          <Row label="Length" render={(g) => <span className="tabnum">{fmtInt(g.length)} aa · {fmtInt(g.bp)} bp</span>} />
+          <Row label="pN/pS overall" render={(_, e) => <span className="tabnum">{formatPnps(e?.pnps?.overall)}</span>} />
+          <Row label="pN/pS L1–L4" render={(_, e) => (
+            <span className="tabnum dim" style={{ fontSize: 12 }}>
+              {formatPnps(e?.pnps?.L1)} · {formatPnps(e?.pnps?.L2)} · {formatPnps(e?.pnps?.L3)} · {formatPnps(e?.pnps?.L4)}
+            </span>
+          )} />
+          <Row label="Positive selection" render={(g, e) => {
+            const d = derive(g);
+            const under = e?.underSelection ?? (e?.omegaLower !== undefined ? e.omegaLower > 1 : d.positiveSelection.underSelection);
+            const peak = e?.omegaPeak ?? d.positiveSelection.peakOmega;
+            const lower = e?.omegaLower ?? d.positiveSelection.peakLowerCi;
+            return <span><b>{under ? 'YES' : 'NO'}</b> · peak {peak} ({lower})</span>;
+          }} />
 
-          {/* Expression matrix: one row per condition, one cell per gene. */}
-          <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}><span className="cmp-label-stack"><span>Transcriptional response</span><SourceBadge kind="representative" compact /></span></div>
-          {genes.map((g) => <div key={g.orf} className="cmp-cell" style={{ background: 'var(--panel-3)', fontSize: 11.5 }} />)}
+          <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}>
+            <span className="cmp-label-stack"><span>TMHMM</span><SourceBadge kind="reference" compact /></span>
+          </div>
+          {genes.map((g) => {
+            const d = derive(g);
+            return (
+              <div key={g.orf} className="cmp-cell cmp-plot-cell">
+                <PortalFigure
+                  src={portalTmhmmUrl(g.orf)}
+                  alt={`TMHMM for ${g.orf}`}
+                  href={portalGenePage(g.orf)}
+                  fallback={<TmhmmPlot profile={d.tmhmm} orf={g.orf} />}
+                />
+              </div>
+            );
+          })}
 
-          {CONDITIONS.map((c) => (
-            <div className="cmp-row" key={c.id}>
-              <div className="cmp-rowlabel" style={{ fontWeight: 550, textTransform: 'none', letterSpacing: 0, fontSize: 12 }}>{c.label}</div>
-              {genes.map((g) => {
-                const pt = derived.get(g.orf)!.expression.find((e) => e.conditionId === c.id)!;
-                return <div key={g.orf} className="cmp-cell" style={{ paddingTop: 8, paddingBottom: 8 }}><HeatBox v={pt.log2fc} /></div>;
-              })}
-            </div>
-          ))}
+          <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}>
+            <span className="cmp-label-stack"><span>Omega plot</span><SourceBadge kind="reference" compact /></span>
+          </div>
+          {genes.map((g) => {
+            const d = derive(g);
+            return (
+              <div key={g.orf} className="cmp-cell cmp-plot-cell">
+                <PortalFigure
+                  src={portalOmegaPlotUrl(g.orf)}
+                  alt={`Omega plot for ${g.orf}`}
+                  href={portalOmegaPlotUrl(g.orf)}
+                  fallback={<OmegaPlot series={d.positiveSelection.series} orf={g.orf} />}
+                />
+              </div>
+            );
+          })}
+
+          <Row label="Sequence" tall render={(_, e) => (
+            e?.sequence
+              ? <pre className="seq cmp-seq">{e.sequence.length > 180 ? `${e.sequence.slice(0, 180)}…` : e.sequence}</pre>
+              : <span className="faint">Not cached</span>
+          )} />
 
           <Row label="Resources" render={(g) => (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <a className="chip" href={`https://mycobrowser.epfl.ch/genes/${g.orf}`} target="_blank" rel="noopener noreferrer">Mycobrowser <ExternalLink size={11} /></a>
+              <a className="chip" href={portalGenePage(g.orf)} target="_blank" rel="noopener noreferrer">Portal <ExternalLink size={11} /></a>
+              <a className="chip" href={portalVariantsUrl(g.orf)} target="_blank" rel="noopener noreferrer">Variants <ExternalLink size={11} /></a>
               <a className="chip" href={href(`gene/${g.orf}`)}>Full page</a>
             </div>
           )} />
         </div>
       </div>
-
-      <p className="dim" style={{ fontSize: 12.5, marginTop: 12, maxWidth: '70ch' }}>
-        The catalog rows (product, location, length) are reference annotation. Essentiality, expression, fitness and protein
-        rows are representative demonstration data — see <a href={href('about')} style={{ textDecoration: 'underline' }}>About</a>.
-      </p>
     </div>
   );
 }

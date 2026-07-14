@@ -1,20 +1,17 @@
 import { useMemo } from 'react';
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, Columns3, X, Plus, Check } from 'lucide-react';
-import type { Dataset, EssentialityCall, Gene } from '../lib/types';
+import type { Dataset, Gene } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
 import {
   browserStatePath,
-  ESSENTIALITY_FILTERS,
   parseBrowserState,
   type BrowserSortKey,
 } from '../lib/browserState';
-import { derive } from '../lib/derive';
 import { href, replaceRoute, useRoute } from '../lib/router';
 import { fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
-import { CategoryTag, EssentialityBadge } from '../components/common';
+import { CategoryTag } from '../components/common';
 
-const ESS_RANK: Record<EssentialityCall, number> = { essential: 0, 'growth-defect': 1, 'non-essential': 2, uncertain: 3, 'no-data': 4 };
 const PAGE = 50;
 
 export function Browser({ dataset }: { dataset: Dataset }) {
@@ -22,38 +19,29 @@ export function Browser({ dataset }: { dataset: Dataset }) {
   const compare = useCompare();
   const state = useMemo(() => parseBrowserState(route.params), [route.raw]);
   const cats = useMemo(() => new Set(state.cats), [state.cats]);
-  const ess = useMemo(() => new Set(state.ess), [state.ess]);
-
-  // Essentiality is derived once for the whole genome, then reused for filter + sort.
-  const essMap = useMemo(() => {
-    const m = new Map<string, EssentialityCall>();
-    for (const g of dataset.genes) m.set(g.orf, derive(g).essentiality);
-    return m;
-  }, [dataset]);
 
   const filtered = useMemo(() => {
     const terms = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
     let list = dataset.genes.filter((g) => {
       if (cats.size && !cats.has(g.category)) return false;
       if (state.strand !== 'all' && g.strand !== state.strand) return false;
-      if (ess.size && !ess.has(essMap.get(g.orf)!)) return false;
       if (terms.length) {
         const hay = `${g.orf} ${g.gene ?? ''} ${g.annotation}`.toLowerCase();
         if (!terms.every((t) => hay.includes(t))) return false;
       }
       return true;
     });
-    const cmp: Record<BrowserSortKey, (a: Gene, b: Gene) => number> = {
+    const cmp: Record<Exclude<BrowserSortKey, 'essentiality'>, (a: Gene, b: Gene) => number> = {
       position: (a, b) => a.start - b.start,
       orf: (a, b) => a.orf.localeCompare(b.orf, undefined, { numeric: true }),
       gene: (a, b) => (a.gene ?? 'zzz').localeCompare(b.gene ?? 'zzz'),
       length: (a, b) => a.length - b.length,
       category: (a, b) => category(a.category).label.localeCompare(category(b.category).label),
-      essentiality: (a, b) => ESS_RANK[essMap.get(a.orf)!] - ESS_RANK[essMap.get(b.orf)!],
     };
-    list = [...list].sort((a, b) => cmp[state.sort](a, b) * state.dir || a.start - b.start);
+    const sortKey = state.sort === 'essentiality' ? 'position' : state.sort;
+    list = [...list].sort((a, b) => cmp[sortKey](a, b) * state.dir || a.start - b.start);
     return list;
-  }, [dataset, state.q, state.strand, state.sort, state.dir, cats, ess, essMap]);
+  }, [dataset, state.q, state.strand, state.sort, state.dir, cats]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const page = Math.min(state.page, pages - 1);
@@ -63,7 +51,7 @@ export function Browser({ dataset }: { dataset: Dataset }) {
     replaceRoute(browserStatePath({ ...state, ...patch, page: resetPage ? 0 : patch.page ?? state.page }));
   };
 
-  const setSortKey = (key: BrowserSortKey) => {
+  const setSortKey = (key: Exclude<BrowserSortKey, 'essentiality'>) => {
     update(
       state.sort === key
         ? { dir: state.dir === 1 ? -1 : 1 }
@@ -75,15 +63,11 @@ export function Browser({ dataset }: { dataset: Dataset }) {
     const next = cats.has(id) ? state.cats.filter((cat) => cat !== id) : [...state.cats, id];
     update({ cats: next });
   };
-  const toggleEss = (c: EssentialityCall) => {
-    const next = ess.has(c) ? state.ess.filter((call) => call !== c) : [...state.ess, c];
-    update({ ess: next });
-  };
   const clearAll = () => update({ q: '', cats: [], strand: 'all', ess: [] });
-  const hasFilters = cats.size || state.strand !== 'all' || ess.size || state.q.trim();
+  const hasFilters = cats.size || state.strand !== 'all' || state.q.trim();
 
-  const sortIcon = (key: BrowserSortKey) => state.sort !== key ? <ArrowUpDown size={12} style={{ opacity: 0.4 }} /> : state.dir === 1 ? <ArrowUp size={12} className="arrow" /> : <ArrowDown size={12} className="arrow" />;
-  const SortHeader = ({ label, sortKey, align }: { label: string; sortKey: BrowserSortKey; align?: 'right' }) => (
+  const sortIcon = (key: Exclude<BrowserSortKey, 'essentiality'>) => state.sort !== key ? <ArrowUpDown size={12} style={{ opacity: 0.4 }} /> : state.dir === 1 ? <ArrowUp size={12} className="arrow" /> : <ArrowDown size={12} className="arrow" />;
+  const SortHeader = ({ label, sortKey, align }: { label: string; sortKey: Exclude<BrowserSortKey, 'essentiality'>; align?: 'right' }) => (
     <th aria-sort={state.sort === sortKey ? (state.dir === 1 ? 'ascending' : 'descending') : 'none'} style={align === 'right' ? { textAlign: 'right' } : undefined}>
       <button className="th-sort" type="button" onClick={() => setSortKey(sortKey)}>
         <span>{label}</span>
@@ -119,19 +103,11 @@ export function Browser({ dataset }: { dataset: Dataset }) {
         {hasFilters ? <button className="btn btn-ghost btn-sm" onClick={clearAll}><X size={14} /> Clear</button> : null}
       </div>
 
-      <div className="filter-scroll" style={{ marginBottom: 8 }}>
+      <div className="filter-scroll" style={{ marginBottom: 12 }}>
         {CATEGORIES.filter((c) => dataset.categories[c.id]).map((c) => (
           <button key={c.id} type="button" className={`chip${cats.has(c.id) ? ' on' : ''}`} aria-pressed={cats.has(c.id)} onClick={() => toggleCat(c.id)}>
             <span className="dot" style={{ background: c.color }} /> {c.short}
             <span className="faint tabnum" style={{ fontSize: 11 }}>{fmtInt(dataset.categories[c.id])}</span>
-          </button>
-        ))}
-      </div>
-      <div className="filter-scroll" style={{ marginBottom: 12 }}>
-        <span className="faint" style={{ fontSize: 12.5, alignSelf: 'center', fontWeight: 600 }}>Essentiality:</span>
-        {ESSENTIALITY_FILTERS.map((c) => (
-          <button key={c} type="button" className={`chip${ess.has(c) ? ' on' : ''}`} aria-pressed={ess.has(c)} onClick={() => toggleEss(c)}>
-            <span className={`ess ess-${c}`} style={{ gap: 5 }}><span className="dot dot-round" style={{ background: 'currentColor', width: 8, height: 8 }} />{c === 'growth-defect' ? 'Growth-defect' : c === 'non-essential' ? 'Non-essential' : 'Essential'}</span>
           </button>
         ))}
       </div>
@@ -149,7 +125,6 @@ export function Browser({ dataset }: { dataset: Dataset }) {
               <SortHeader label="Gene" sortKey="gene" />
               <th className="no-sort">Product</th>
               <SortHeader label="Class" sortKey="category" />
-              <SortHeader label="Essentiality" sortKey="essentiality" />
               <SortHeader label="Length" sortKey="length" align="right" />
               <SortHeader label="Position" sortKey="position" />
             </tr>
@@ -176,7 +151,6 @@ export function Browser({ dataset }: { dataset: Dataset }) {
                   <td>{g.gene ? <a className="row-link accent" href={href(`gene/${g.orf}`)}>{g.gene}</a> : <span className="faint">-</span>}</td>
                   <td className="dim" style={{ maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.annotation}</td>
                   <td><CategoryTag id={g.category} /></td>
-                  <td><EssentialityBadge call={essMap.get(g.orf)!} /></td>
                   <td className="tabnum dim" style={{ textAlign: 'right' }}>{fmtInt(g.length)} aa</td>
                   <td className="mono dim" style={{ fontSize: 12.5 }}>{g.strand}{(g.start / 1000).toFixed(0)}k</td>
                 </tr>
@@ -211,7 +185,6 @@ export function Browser({ dataset }: { dataset: Dataset }) {
               <p>{g.annotation}</p>
               <div className="gene-card-meta">
                 <CategoryTag id={g.category} />
-                <EssentialityBadge call={essMap.get(g.orf)!} />
                 <span className="mono dim">{g.strand}{(g.start / 1000).toFixed(0)}k</span>
                 <span className="tabnum dim">{fmtInt(g.length)} aa</span>
               </div>

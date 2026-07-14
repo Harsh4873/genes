@@ -1,11 +1,7 @@
 import type { Dataset } from '../lib/types';
-import { CONDITIONS, ESSENTIALITY_DATASETS } from '../lib/conditions';
 import { SectionTitle, Provenance, SourceBadge } from '../components/common';
 import { fmtInt } from '../lib/format';
-
-const GROUP_COLOR: Record<string, string> = {
-  Stress: '#e0567a', 'Growth state': '#5b8def', Host: '#22b8a6', Drug: '#f2994a',
-};
+import { portalOmegaCollectionUrl, portalGenomegaMapPaperUrl } from '../lib/portalPlots';
 
 export function Datasets({ dataset }: { dataset: Dataset }) {
   const sourceUrl = dataset.metadata?.source.url ?? 'https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html';
@@ -15,8 +11,8 @@ export function Datasets({ dataset }: { dataset: Dataset }) {
     <div className="container">
       <h1 style={{ fontSize: 26 }}>Datasets</h1>
       <p className="dim" style={{ maxWidth: '64ch', marginTop: 6 }}>
-        MtbScope separates the reviewed reference catalog from representative analytical panels. This page is the source map:
-        what is real annotation, what is demonstration data, and how the snapshot stays checkable.
+        Source map for the fields MtbScope keeps: the H37Rv catalog snapshot, portal gene-page enrichment, and the published
+        TMHMM / GenomegaMap plot assets.
       </p>
 
       <div className="section">
@@ -34,67 +30,44 @@ export function Datasets({ dataset }: { dataset: Dataset }) {
           <div className="card card-pad source-panel">
             <h3>Freshness model</h3>
             <p className="dim">
-              The site ships a reviewed static JSON catalog. A scheduled check fetches the official portal protein table and
-              compares its bytes with the checked-in snapshot. When upstream changes, the refresh command rebuilds the snapshot
-              and catalog together so the website stays reproducible.
+              <span className="mono">npm run data:check</span> compares the checked-in protein table with the live portal table.
+              <span className="mono"> npm run data:enrich</span> re-scrapes per-gene portal pages for annotations, pN/pS and sequence.
             </p>
             <div className="source-actions">
               <a className="btn btn-sm" href={sourceUrl} target="_blank" rel="noopener noreferrer">Open source table</a>
-              <span className="badge">Read-only check: <span className="mono">npm run data:check</span></span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="section">
-        <SectionTitle aside={<SourceBadge kind="representative" />}>Essentiality &amp; fitness (TnSeq)</SectionTitle>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr><th className="no-sort">Study</th><th className="no-sort">Condition</th><th className="no-sort">Medium / host</th><th className="no-sort">Method</th></tr>
-            </thead>
-            <tbody>
-              {ESSENTIALITY_DATASETS.map((d) => (
-                <tr key={d.id} style={{ cursor: 'default' }}>
-                  <td style={{ fontWeight: 600 }}>{d.ref}</td>
-                  <td className="dim">{d.condition}</td>
-                  <td className="dim">{d.medium}</td>
-                  <td className="mono dim" style={{ fontSize: 12.5 }}>{d.method}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <SectionTitle aside={<SourceBadge kind="reference" />}>Portal enrichment</SectionTitle>
+        <div className="card card-pad">
+          <p className="dim" style={{ marginTop: 0, fontSize: 13.5 }}>
+            Stored in <span className="mono">public/data/portal-enrichment.json</span>: TBDB / RefSeq / PATRIC / TubercuList /
+            NCBI product strings, Culviner lineage pN/pS, GenomegaMap peak summary, and amino-acid sequence for each ORF.
+          </p>
         </div>
-        <p className="dim" style={{ fontSize: 13, marginTop: 8 }}>
-          Transposon-insertion sequencing (Tn-Seq / TraSH) saturates the genome with insertions; genes that cannot tolerate
-          them are inferred to be required for growth in that condition.
-        </p>
       </div>
 
       <div className="section">
-        <SectionTitle aside={<SourceBadge kind="representative" />}>Transcriptional response panel</SectionTitle>
+        <SectionTitle aside={<SourceBadge kind="reference" />}>Published plot assets</SectionTitle>
         <div className="card card-pad">
-          <p className="dim" style={{ marginTop: 0, fontSize: 13.5 }}>
-            Expression fold-changes are reported across {CONDITIONS.length} conditions spanning stress, growth state, host and
-            drug exposure — the classic axes probed by H37Rv microarray and RNA-seq stress panels.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
-            {CONDITIONS.map((c) => (
-              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: 'var(--panel-2)', borderRadius: 8 }}>
-                <span className="dot" style={{ background: GROUP_COLOR[c.group] }} />
-                <span style={{ fontWeight: 600, fontSize: 13.5 }}>{c.label}</span>
-                <span className="faint" style={{ marginLeft: 'auto', fontSize: 11.5 }}>{c.group}</span>
-              </div>
-            ))}
-          </div>
+          <ul className="portal-bullets">
+            <li>TMHMM GIFs hosted on the TB Genome Portal gene pages.</li>
+            <li>
+              GenomegaMap omega PNGs and variant lists from the{' '}
+              <a href={portalOmegaCollectionUrl()} target="_blank" rel="noopener noreferrer">10,626-genome collection</a>
+              {' '}(<a href={portalGenomegaMapPaperUrl()} target="_blank" rel="noopener noreferrer">paper</a>).
+            </li>
+          </ul>
         </div>
       </div>
 
       <div className="section">
         <Provenance>
-          The catalog snapshot above is the reference annotation. The per-gene values in the essentiality, expression, fitness,
-          protein, vulnerability, pathway and module panels are <b>representative demonstration data</b>, not the primary
-          measurements from those studies. Use the external database links on any gene page to reach curated primary data.
+          Gene and compare pages intentionally omit synthetic expression / essentiality demo panels. Follow the portal and
+          database links for primary literature and curated tables beyond this mirror.
         </Provenance>
       </div>
     </div>

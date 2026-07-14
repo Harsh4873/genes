@@ -9,6 +9,7 @@
     "build:data": "node scripts/build-dataset.mjs",
     "data:check": "node scripts/refresh-dataset.mjs --check",
     "data:refresh": "node scripts/refresh-dataset.mjs --refresh",
+    "data:enrich": "node scripts/enrich-portal.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
