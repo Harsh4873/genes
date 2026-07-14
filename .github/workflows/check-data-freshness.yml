@@ -2,24 +2,116 @@ name: Check dataset freshness
 
 on:
   schedule:
+    # Monday 06:17 UTC
     - cron: '17 6 * * 1'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dataset-freshness
+  cancel-in-progress: false
 
 jobs:
-  check:
+  check-and-refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out source
         uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Compare checked-in snapshot with upstream
-        run: npm run data:check
+        id: drift
+        run: |
+          set +e
+          npm run data:check
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            echo "Catalog snapshot matches upstream."
+          else
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "Catalog snapshot drifted from upstream — will refresh."
+          fi
+
+      - name: Refresh catalog snapshot
+        if: steps.drift.outputs.stale == 'true'
+        run: npm run data:refresh
+
+      - name: Re-scrape portal gene enrichment
+        if: steps.drift.outputs.stale == 'true'
+        run: npm run data:enrich -- --concurrency 24
+
+      - name: Commit and push refreshed data
+        id: commit
+        if: steps.drift.outputs.stale == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            scripts/source/H37Rv.prot_table.html \
+            public/data/genes.json \
+            public/data/portal-enrichment.json
+
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Refresh produced no file changes."
+            exit 0
+          fi
+
+          git commit -m "$(cat <<'EOF'
+          Refresh H37Rv catalog from the TB Genome Portal.
+
+          Scheduled freshness check detected upstream drift, so the snapshot, genes.json, and portal enrichment were regenerated automatically.
+          EOF
+          )"
+
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # GITHUB_TOKEN pushes do not retrigger other workflows, so deploy here when we refreshed.
+      - name: Configure Pages
+        if: steps.commit.outputs.changed == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Run tests
+        if: steps.commit.outputs.changed == 'true'
+        run: npm test
+
+      - name: Check types
+        if: steps.commit.outputs.changed == 'true'
+        run: npm run typecheck
+
+      - name: Build site
+        if: steps.commit.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Upload Pages artifact
+        if: steps.commit.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to Pages
+        if: steps.commit.outputs.changed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4

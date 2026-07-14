@@ -55,6 +55,7 @@ jobs:
             'dist/favicon.svg',
             'dist/manifest.webmanifest',
             'dist/data/genes.json',
+            'dist/data/portal-enrichment.json',
           ];
           for (const path of required) {
             if (!existsSync(path)) throw new Error(`Missing Pages artifact: ${path}`);

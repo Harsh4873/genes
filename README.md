@@ -32,12 +32,21 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
 
 `npm run data:check` fetches the canonical
 `https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html` source and compares its bytes with the checked-in snapshot. It never
-writes files and exits nonzero when the source has drifted. A scheduled, manually runnable GitHub Action performs the same
-read-only check and does not commit changes.
+writes files and exits nonzero when the source has drifted.
 
-After reviewing an upstream change, run `npm run data:refresh` to explicitly replace the snapshot and rebuild
-`public/data/genes.json`. Commit both reviewed files together. `npm run build:data` remains the offline command for rebuilding
-the JSON from the current checked-in snapshot.
+A scheduled GitHub Action runs that check every Monday. **When drift is detected it automatically** runs
+`npm run data:refresh` and `npm run data:enrich`, commits the updated snapshot / `genes.json` / enrichment file to `main`,
+and redeploys Pages from that same workflow (bot pushes do not retrigger the normal Pages workflow). You can also trigger the
+same job manually from the Actions tab.
+
+Locally, after reviewing an upstream change yourself:
+
+```sh
+npm run data:refresh   # replace snapshot + rebuild genes.json
+npm run data:enrich    # re-scrape annotations, pN/pS, sequences
+```
+
+`npm run build:data` remains the offline command for rebuilding the JSON from the current checked-in snapshot.
 
 ## Development
 
