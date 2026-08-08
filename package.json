@@ -12,7 +12,8 @@
     "data:enrich": "node scripts/enrich-portal.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:selection": "node scripts/build-selection.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

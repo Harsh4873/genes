@@ -14,7 +14,38 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
   protein stats, GO terms, and live links to Mycobrowser, KEGG, UniProt, STRING, AlphaFold and NCBI.
 - **Comparison panel** — pin up to eight genes into aligned columns and read their essentiality, an expression heatmap across
   14 conditions, fitness and protein data together. Shareable and bookmarkable by URL.
+- **Selection Lab** (`/genes/selection/`) — a differential-selection workspace over the whole genome; see below.
 - **Light / dark themes**, responsive layout, no backend and no tracking.
+
+## Selection Lab
+
+The Lab compares selection pressure gene by gene between *M. tuberculosis* isolates from TB patients **with** diabetes (DB,
+178 isolates) and **without** (NDB, 744), across all 4,018 annotated genes, by three independent methods:
+
+- **GenomegaMap posteriors** for ω (dN/dS) per cohort with 95% credible intervals, and **DPD** = P(ω_DB > ω_NDB) from paired
+  posterior draws.
+- **pN/pS** from the nonsynonymous and synonymous counts per cohort, compared as Δlog₂(pN/pS), with a Pearson 2x2 χ² on the
+  same counts.
+- **codeml branch model**, fitting one ω per cohort clade (M2) against a single shared ω (M0) and testing the difference by
+  likelihood ratio.
+
+What it does with them:
+
+- **Live thresholds.** DPD, the ω floor and the allele floor are sliders, and the **filter chain** shows what each criterion
+  removes: 4,018 genes → 35 above DPD 0.95 → 34 with ω_DB > 1 → 18 with 15 or more distinct alleles. One click restores the
+  criteria the study applies.
+- **Genome-wide plots** — DPD against Δlog₂(pN/pS), signed 2ΔLL against DPD, and ω against ω — each downloadable as SVG.
+- **Gene panel** — posterior means and intervals, the 2x2 mutation table, possible-site counts, χ², the branch-model fit or
+  the reason the gene could not be fitted, and a criterion-by-criterion verdict.
+- **Provenance** — the alignment sizes, model settings and commands behind each number, plus the snapshot checksum.
+- **CSV export** of the current view.
+
+Every ratio, P-value and significance call is **recomputed in the browser** from the measured counts and posterior summaries
+(`src/lib/selectionStats.ts`) rather than read out of the source sheet, so the thresholds move and the numbers move with them.
+The recomputation is checked against the values the sheet publishes, and the agreement is reported on the page.
+
+> The manuscript behind this dataset is in preparation. The Lab labels these results **unpublished and not peer reviewed**
+> throughout.
 
 ## Data
 
@@ -23,10 +54,14 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
 - The catalog is built from the checked-in upstream snapshot at `scripts/source/H37Rv.prot_table.html`. Generated JSON records
   the schema version, canonical upstream URL, snapshot path, and SHA-256 checksum; it intentionally has no build timestamp, so
   rebuilding an unchanged snapshot is byte-for-byte reproducible.
-- Analytical panels — essentiality, expression, TnSeq fitness, protein biophysics, vulnerability and selection — are
-  **representative demonstration data** generated deterministically from each gene (`src/lib/derive.ts`). They are seeded from
-  real properties so patterns are plausible and stable, but they are not experimental measurements. The UI labels them as
-  representative; see the About page.
+- Analytical panels on gene and compare pages — essentiality, expression, TnSeq fitness, protein biophysics, vulnerability
+  and the codon-wise omega sketch — are **representative demonstration data** generated deterministically from each gene
+  (`src/lib/derive.ts`). They are seeded from real properties so patterns are plausible and stable, but they are not
+  experimental measurements. The UI labels them as representative; see the About page.
+- The **selection dataset** (`public/data/selection.json`) is the exception: real, unpublished analysis output, built by
+  `npm run build:selection` from the checked-in snapshots `scripts/source/selection-db-ndb.tsv` (per-gene model results) and
+  `scripts/source/selection-cohort.tsv` (cohort composition, aggregated — the per-isolate sheet is not shipped). It records
+  its own schema version, method descriptions and SHA-256 checksums, and like the catalog it carries no build timestamp.
 
 ### Updating the catalog snapshot
 
@@ -52,8 +87,9 @@ npm run data:enrich    # re-scrape annotations, pN/pS, sequences
 
 ```sh
 npm ci
-npm run build:data   # regenerate public/data/genes.json from scripts/source/
-npm run data:check   # read-only comparison of the snapshot with upstream
+npm run build:data       # regenerate public/data/genes.json from scripts/source/
+npm run build:selection  # regenerate public/data/selection.json from its snapshots
+npm run data:check       # read-only comparison of the snapshot with upstream
 npm test
 npm run typecheck
 npm run build

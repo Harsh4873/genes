@@ -229,6 +229,11 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
                   fallback={<OmegaPlot series={d.positiveSelection.series} orf={gene.orf} />}
                 />
               </div>
+              <p className="dim" style={{ fontSize: 13, margin: '14px 0 0' }}>
+                For this gene's ω in TB patients with and without diabetes — posteriors, mutation counts and the
+                branch-model fit — open it in the{' '}
+                <a className="accent" href={href(`selection?gene=${gene.orf}`)}>Selection Lab</a>.
+              </p>
             </div>
           </div>
         </div>
