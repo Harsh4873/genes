@@ -5,3 +5,10 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 AGENTS.md
+
+# Selection Lab source data and the plaintext dataset built from it. The study
+# is unpublished, so only the encrypted artefact (public/data/selection.enc) is
+# committed; see README, "Selection Lab".
+private/
+public/data/selection.json
+.selection-passphrase

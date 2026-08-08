@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowRight, Columns3, Table2, Database, Microscope } from 'lucide-react';
+import { ArrowRight, Columns3, FlaskConical, Table2, Database, Microscope } from 'lucide-react';
 import type { Dataset } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
 import { href, navigate } from '../lib/router';
@@ -102,6 +102,11 @@ export function Home({ dataset }: { dataset: Dataset }) {
           </div>
 
           <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+            <a className="link-card" href={href('selection')}>
+              <h3><FlaskConical size={18} style={{ color: 'var(--accent)' }} /> Selection Lab</h3>
+              <p>A genome-wide differential-selection workspace. Passphrase required — the dataset is published encrypted.</p>
+              <span className="btn btn-ghost btn-sm" style={{ marginTop: 10, paddingLeft: 0 }}>Open the Lab <ArrowRight size={15} /></span>
+            </a>
             <a className="link-card" href={href('compare')}>
               <h3><Columns3 size={18} style={{ color: 'var(--accent)' }} /> Multi-gene comparison</h3>
               <p>Line up annotations, TMHMM, omega plots, pN/pS and sequence across genes. Shareable by URL.</p>

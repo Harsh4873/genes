@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import { href } from '../lib/router';
 import { SectionTitle, SourceBadge } from '../components/common';
 
 export function About() {
@@ -32,11 +33,27 @@ export function About() {
       </div>
 
       <div className="section">
+        <SectionTitle aside={<SourceBadge kind="study" />}>The Selection Lab</SectionTitle>
+        <p className="dim">
+          The <a className="accent" href={href('selection')}>Selection Lab</a> is the exception to everything above: it carries
+          real analysis output from a study in preparation rather than portal assets or demonstration data, so it is{' '}
+          <b>access controlled</b>.
+        </p>
+        <p className="dim">
+          There is no server here to check a password against, so the dataset itself is published encrypted (AES-256-GCM, with
+          the key derived from a passphrase by PBKDF2-SHA256 over 600,000 iterations). The passphrase never leaves the device:
+          it derives the key in the browser, and without it the published file is ciphertext. Everything else in MtbScope is
+          open as usual.
+        </p>
+      </div>
+
+      <div className="section">
         <SectionTitle>How it's built</SectionTitle>
         <p className="dim">
-          Static React + TypeScript app. The catalog and portal enrichment load as JSON; search, browse and compare run in the
-          browser. Refresh the catalog with <span className="mono">npm run data:refresh</span> and re-scrape portal gene pages
-          with <span className="mono">npm run data:enrich</span>.
+          Static React + TypeScript app. The catalog, portal enrichment and selection dataset load as JSON; search, browse,
+          compare and the whole Lab run in the browser. Refresh the catalog with <span className="mono">npm run data:refresh</span>,
+          re-scrape portal gene pages with <span className="mono">npm run data:enrich</span>, and rebuild the selection dataset
+          from its snapshot with <span className="mono">npm run build:selection</span>.
         </p>
       </div>
     </div>

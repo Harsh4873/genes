@@ -56,9 +56,24 @@ jobs:
             'dist/manifest.webmanifest',
             'dist/data/genes.json',
             'dist/data/portal-enrichment.json',
+            'dist/data/selection.enc',
+            'dist/selection/index.html',
           ];
           for (const path of required) {
             if (!existsSync(path)) throw new Error(`Missing Pages artifact: ${path}`);
+          }
+
+          // The selection study is unpublished: only ciphertext may be
+          // published, and the plaintext build output must never be uploaded.
+          if (existsSync('dist/data/selection.json')) {
+            throw new Error('dist/data/selection.json is plaintext and must not be published.');
+          }
+          const envelope = JSON.parse(readFileSync('dist/data/selection.enc', 'utf8'));
+          if (envelope.v !== 1 || envelope.kdf?.name !== 'PBKDF2' || envelope.cipher?.name !== 'AES-GCM') {
+            throw new Error('The published selection dataset is not a sealed envelope.');
+          }
+          if (JSON.stringify(envelope).includes('Rv0001')) {
+            throw new Error('The selection envelope appears to contain plaintext gene identifiers.');
           }
 
           const html = readFileSync('dist/index.html', 'utf8');

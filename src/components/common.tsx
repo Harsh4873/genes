@@ -13,7 +13,7 @@ export function CategoryTag({ id, withLabel = true }: { id: CategoryId; withLabe
   );
 }
 
-export type DataKind = 'reference' | 'representative';
+export type DataKind = 'reference' | 'representative' | 'study';
 
 const SOURCE_META: Record<DataKind, { label: string; short: string; description: string }> = {
   reference: {
@@ -25,6 +25,11 @@ const SOURCE_META: Record<DataKind, { label: string; short: string; description:
     label: 'Representative demonstration data',
     short: 'Representative',
     description: 'Deterministically generated demonstration data, not an experimental measurement.',
+  },
+  study: {
+    label: 'Study result, unpublished',
+    short: 'Study result',
+    description: 'Real analysis output from an in-house study whose manuscript is in preparation. Not peer reviewed.',
   },
 };
 

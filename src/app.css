@@ -303,6 +303,11 @@ h1, h2, h3, h4 { margin: 0; font-weight: 650; letter-spacing: -0.01em; line-heig
   border-color: color-mix(in srgb, var(--warn) 36%, var(--border));
   background: color-mix(in srgb, var(--warn) 11%, var(--panel));
 }
+.source-badge-study {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 36%, var(--border));
+  background: color-mix(in srgb, var(--info) 11%, var(--panel));
+}
 
 .ess { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; font-size: 13px; }
 .ess-essential { color: var(--ess-essential); }
@@ -807,3 +812,243 @@ button.search-row {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Selection Lab ---------- */
+.lab-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.unpublished-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warn) 36%, var(--border));
+  background: color-mix(in srgb, var(--warn) 9%, var(--panel));
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.unpublished-note b { color: var(--text); }
+
+.cohort-card .cohort-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px 26px;
+}
+.cohort-facet {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cohort-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 44px;
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 12.5px;
+}
+.cohort-label { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cohort-count { text-align: right; color: var(--text-faint); }
+.cohort-bar {
+  display: flex;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-3);
+}
+.cohort-bar span { display: block; height: 100%; }
+.cohort-key {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.cohort-key span { display: inline-flex; align-items: center; gap: 6px; }
+.cohort-key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px 22px;
+  margin-bottom: 12px;
+}
+.threshold {
+  display: grid;
+  grid-template-columns: 108px 1fr 52px;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.threshold input[type="range"] { width: 100%; accent-color: var(--accent); }
+.threshold b { text-align: right; color: var(--text); }
+
+.filter-chain {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.filter-chain li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+.filter-chain li + li .chain-label { padding-left: 16px; position: relative; }
+.filter-chain li + li .chain-label::before {
+  content: "↳";
+  position: absolute;
+  left: 0;
+  color: var(--text-faint);
+}
+.chain-label { color: var(--text-dim); }
+.chain-count { font-weight: 700; color: var(--text); min-width: 54px; text-align: right; }
+.chain-drop { color: var(--text-faint); min-width: 60px; text-align: right; font-size: 12px; }
+
+.selection-plot-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.selection-svg { width: 100%; height: auto; display: block; }
+.selection-dot { cursor: pointer; }
+.selection-dot:hover { stroke: var(--text); stroke-width: 1.5; }
+
+.call-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.call-positive {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
+}
+.call-purifying {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--info) 32%, var(--border));
+}
+
+.selection-table td { font-size: 13px; white-space: nowrap; }
+.selection-table tbody tr { cursor: pointer; }
+.selection-table tr.row-focus { background: var(--accent-soft); }
+.selection-table .ci { color: var(--text-faint); font-size: 11.5px; }
+.link-button { background: none; border: none; padding: 0; font: inherit; cursor: pointer; }
+
+.gene-panel { margin-top: 16px; border-color: var(--accent-line); }
+.gene-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 22px 30px;
+  margin: 16px 0 6px;
+}
+.gene-panel-grid h5 {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.gene-panel-grid h6 { margin: 12px 0 6px; font-size: 12.5px; color: var(--text-dim); font-weight: 650; }
+.gene-panel-grid h6:first-child { margin-top: 0; }
+.omega-intervals { width: 100%; max-width: 420px; height: auto; margin-bottom: 10px; }
+.mini-table { font-size: 13px; }
+.mini-table th, .mini-table td { padding: 5px 9px; }
+
+.criteria { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.criteria li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  color: var(--text-faint);
+}
+.criteria li[data-pass="true"] { color: var(--ok); }
+.criteria li[data-pass="false"] { color: var(--text-faint); }
+
+.method-list { grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
+.method-row { display: grid; grid-template-columns: 130px 1fr; gap: 16px; align-items: baseline; }
+.method-row dt {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 750;
+}
+.method-row dd { margin: 0; font-size: 13px; line-height: 1.6; font-weight: 400; }
+
+@media (max-width: 760px) {
+  .threshold { grid-template-columns: 96px 1fr 44px; }
+  .method-row { grid-template-columns: 1fr; gap: 4px; }
+  .cohort-row { grid-template-columns: 78px 1fr 40px; }
+}
+
+/* Gene symbols, Rv ids and Greek model parameters are case-sensitive names,
+   so the Lab opts out of the shared uppercase treatment for headers. */
+.selection-table th,
+.mini-table th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+.gene-panel .card-title-row h4 {
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-size: 17px;
+  color: var(--text);
+}
+.gene-panel .card-title-row h4 .mono { font-size: 15.5px; color: var(--text-dim); }
+
+/* ---------- Selection Lab lock ---------- */
+.lock-card { margin-top: 40px; text-align: center; }
+.lock-icon {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+}
+.lock-input {
+  width: 100%;
+  margin: 16px 0 10px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14.5px;
+}
+.lock-input:disabled { opacity: 0.6; }
+.lock-error {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--danger);
+}
+.spin { animation: lock-spin 1s linear infinite; }
+@keyframes lock-spin { to { transform: rotate(360deg); } }
