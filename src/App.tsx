@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Browser } from './pages/Browser';
 import { GeneDetail } from './pages/GeneDetail';
+import { SelectionLab } from './pages/SelectionLab';
 import { Compare } from './pages/Compare';
 import { Datasets } from './pages/Datasets';
 import { About } from './pages/About';
@@ -44,7 +45,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const label = route.path === 'gene' && route.params.id ? route.params.id : route.path === 'home' ? 'Overview' : route.path;
+    const label =
+      route.path === 'gene' && route.params.id
+        ? route.params.id
+        : route.path === 'home'
+          ? 'Overview'
+          : route.path === 'selection'
+            ? 'Selection Lab'
+            : route.path;
     document.title = `${label} · MtbScope`;
   }, [route.path, route.params.id]);
 
@@ -77,6 +85,9 @@ export default function App() {
         break;
       case 'gene':
         page = <GeneDetail dataset={dataset} orf={route.params.id ?? ''} />;
+        break;
+      case 'selection':
+        page = <SelectionLab dataset={dataset} />;
         break;
       case 'compare':
         page = <Compare dataset={dataset} />;
