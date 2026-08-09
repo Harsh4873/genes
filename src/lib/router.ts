@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 // held in one external store so every consumer observes the same stable
 // snapshot and the browser only needs one pair of history listeners.
 
-export const KNOWN_ROUTE_PATHS = ['home', 'browse', 'gene', 'selection', 'compare', 'datasets', 'about'] as const;
+export const KNOWN_ROUTE_PATHS = ['home', 'browse', 'gene', 'lookup', 'selection', 'compare', 'datasets', 'about'] as const;
 
 export type KnownRoutePath = (typeof KNOWN_ROUTE_PATHS)[number];
 export type RoutePath = KnownRoutePath | 'not-found';

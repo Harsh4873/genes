@@ -8,6 +8,7 @@ import { GeneSearch } from './GeneSearch';
 const NAV = [
   { path: 'home', label: 'Overview' },
   { path: 'browse', label: 'Browse' },
+  { path: 'lookup', label: 'GeneLookup' },
   { path: 'selection', label: 'Selection Lab' },
   { path: 'compare', label: 'Compare' },
   { path: 'datasets', label: 'Datasets' },

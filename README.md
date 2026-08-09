@@ -14,8 +14,39 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
   protein stats, GO terms, and live links to Mycobrowser, KEGG, UniProt, STRING, AlphaFold and NCBI.
 - **Comparison panel** — pin up to eight genes into aligned columns and read their essentiality, an expression heatmap across
   14 conditions, fitness and protein data together. Shareable and bookmarkable by URL.
+- **GeneLookup** (`/genes/#/lookup`) — look a gene up, read its literature, and rank the genome by what is worth
+  investigating; see below.
 - **Selection Lab** (`/genes/selection/`) — a differential-selection workspace over the whole genome; see below.
 - **Light / dark themes**, responsive layout, no backend and no tracking.
+
+## GeneLookup
+
+Look up any of the 4,018 genes by symbol, locus tag or product, read what has been published about it, and rank the whole
+genome by how much a gene is worth your time.
+
+**Literature** comes from Europe PMC, with the gene's identifiers paired with the organism and scoped to title and
+abstract. The scoping is the whole trick: unscoped, `relA` returns 10,390 hits that are mostly reference lists; scoped, it
+returns 214 papers actually about the gene. Scoping too hard would bury rarely-named loci, so when the scoped query finds
+nothing the search widens to full text rather than reporting an empty literature — `Rv0205` goes from 0 papers to 3.
+
+**GenePrioritize** scores every gene on eight signals: selection strength (ω), statistical significance, mutation count and
+cohort difference from the diabetes study; lineage selection, literature volume, pathway interest and annotation confidence
+from public data. Weights are live sliders, ride in the URL so a ranking can be linked, and the table exports as CSV.
+
+Two rules keep the ranking honest:
+
+- **A missing measurement is not a zero.** A gene's score is the weighted mean over the signals that have data *for that
+  gene*. Counting an unmeasured signal as zero would rank a well-studied gene below one nobody has measured, which is
+  backwards. Each row shows which signals fed it and which were absent.
+- **Only measured quantities are used.** Nothing from `src/lib/derive.ts` feeds the ranking — that module is deterministic
+  demonstration data, and ranking real research priorities on synthetic numbers would be worse than not ranking at all.
+
+Annotation confidence is measured as agreement across the five independent annotation sources scraped from the TB Genome
+Portal (TBDB, RefSeq, PATRIC, TubercuList, NCBI), discounted when the sources agree only about not knowing — five databases
+all saying "conserved hypothetical protein" is agreement, but not confidence.
+
+Because half the signals come from public data, **GenePrioritize produces a real ranking with the Selection Lab still
+locked.** The four study signals are padlocked and greyed until the passphrase is entered; the rest work for anyone.
 
 ## Selection Lab
 
