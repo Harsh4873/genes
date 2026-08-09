@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Browser } from './pages/Browser';
 import { GeneDetail } from './pages/GeneDetail';
+import { GeneLookup } from './pages/GeneLookup';
 import { SelectionLab } from './pages/SelectionLab';
 import { Compare } from './pages/Compare';
 import { Datasets } from './pages/Datasets';
@@ -52,7 +53,9 @@ export default function App() {
           ? 'Overview'
           : route.path === 'selection'
             ? 'Selection Lab'
-            : route.path;
+            : route.path === 'lookup'
+              ? 'GeneLookup'
+              : route.path;
     document.title = `${label} · MtbScope`;
   }, [route.path, route.params.id]);
 
@@ -85,6 +88,9 @@ export default function App() {
         break;
       case 'gene':
         page = <GeneDetail dataset={dataset} orf={route.params.id ?? ''} />;
+        break;
+      case 'lookup':
+        page = <GeneLookup dataset={dataset} />;
         break;
       case 'selection':
         page = <SelectionLab dataset={dataset} />;
