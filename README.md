@@ -8,12 +8,13 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
 
 - **Whole-genome search** — every one of the 4,018 protein-coding genes, searchable by Rv id, gene symbol, or product
   description with ranked autocomplete. Press <kbd>/</kbd> anywhere to focus it.
-- **Gene browser** — multi-facet filtering (functional class, strand, essentiality) and sortable columns across the whole
-  genome, paginated for speed.
-- **Gene pages** — genomic neighbourhood map, per-study essentiality table, transcriptional-response chart, TnSeq fitness and
-  protein stats, GO terms, and live links to Mycobrowser, KEGG, UniProt, STRING, AlphaFold and NCBI.
-- **Comparison panel** — pin up to eight genes into aligned columns and read their essentiality, an expression heatmap across
-  14 conditions, fitness and protein data together. Shareable and bookmarkable by URL.
+- **Gene browser** — multi-facet filtering (functional class, strand) and sortable columns across the whole genome,
+  paginated for speed.
+- **Gene pages** — multi-source product annotations (TBDB, RefSeq, PATRIC, TubercuList, NCBI), locus, the operon figure, the
+  TMHMM topology plot, the GenomegaMap omega (dN/dS) plot with its positive-selection summary, Culviner lineage pN/pS, the
+  amino-acid sequence, and live links to Mycobrowser, the TB Genome Portal, KEGG, UniProt, STRING, AlphaFold and NCBI.
+- **Comparison panel** — pin up to eight genes into aligned columns and read their annotations, location, length, pN/pS,
+  positive selection, TMHMM and omega plots and sequences together. Shareable and bookmarkable by URL.
 - **GeneLookup** (`/genes/#/lookup`) — look a gene up, read its literature, and rank the genome by what is worth
   investigating; see below.
 - **Selection Lab** (`/genes/selection/`) — a differential-selection workspace over the whole genome; see below.
@@ -110,10 +111,13 @@ it is not; the statistics themselves are covered either way, and `tests/lockbox.
 - The catalog is built from the checked-in upstream snapshot at `scripts/source/H37Rv.prot_table.html`. Generated JSON records
   the schema version, canonical upstream URL, snapshot path, and SHA-256 checksum; it intentionally has no build timestamp, so
   rebuilding an unchanged snapshot is byte-for-byte reproducible.
-- Analytical panels on gene and compare pages — essentiality, expression, TnSeq fitness, protein biophysics, vulnerability
-  and the codon-wise omega sketch — are **representative demonstration data** generated deterministically from each gene
-  (`src/lib/derive.ts`). They are seeded from real properties so patterns are plausible and stable, but they are not
-  experimental measurements. The UI labels them as representative; see the About page.
+- Per-gene **annotations, operon and TMHMM/omega figures, pN/pS and sequences** come from the TB Genome Portal enrichment
+  snapshot, re-scraped with `npm run data:enrich`.
+- The synthetic panels — expression heatmaps, hypoxia responses, demo essentiality tables, TnSeq fitness and protein
+  biophysics — were removed from the UI and are shown on no page. What is left of the deterministic generator
+  (`src/lib/derive.ts`) only backs the labelled local TMHMM/omega sketches drawn when a published portal image fails to
+  load, and the positive-selection summary for a gene the enrichment snapshot has no value for. It is **representative
+  demonstration data**, not experimental measurement, and nothing scored or ranked reads from it; see the About page.
 - The **selection dataset** (`public/data/selection.enc`) is the exception: real, unpublished analysis output, so it ships
   encrypted (see "Access control"). It is built from two snapshots kept outside the repository — `selection-db-ndb.tsv`
   (per-gene model results) and `selection-cohort.tsv` (cohort composition, aggregated; the per-isolate sheet is not used) —
