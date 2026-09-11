@@ -51,7 +51,9 @@ function samePathways(a: CategoryId[], b: CategoryId[]): boolean {
 
 export function parseLookupState(params: Record<string, string>): LookupState {
   return {
-    q: (params.q ?? '').trim(),
+    // Do not trim `q` here: the search box is bound to this value, and trimming
+    // on every keystroke would eat the space in `Rv0001 rifampin`.
+    q: params.q ?? '',
     gene: (params.gene ?? '').trim(),
     term: (params.term ?? '').trim(),
     weights: decodeWeights(params.w),

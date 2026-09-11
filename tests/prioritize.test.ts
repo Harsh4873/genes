@@ -229,6 +229,13 @@ describe('GeneLookup URL state', () => {
     expect(parseLookupState({})).toEqual(DEFAULT_LOOKUP_STATE);
   });
 
+  it('round-trips a gene plus extra term, including the space', () => {
+    const path = lookupStatePath({ ...DEFAULT_LOOKUP_STATE, q: 'Rv0001 rifampin' });
+    expect(path).toMatch(/q=Rv0001(\+|%20)rifampin/);
+    expect(parseLookupState(parseHash(`#/${path}`).params).q).toBe('Rv0001 rifampin');
+    expect(parseLookupState({ q: 'Rv0001 rifampin' }).q).toBe('Rv0001 rifampin');
+  });
+
   it('round-trips a customised view through the query string', () => {
     const state = {
       ...DEFAULT_LOOKUP_STATE,
