@@ -49,6 +49,9 @@ function parseGenePage(html, orf) {
   const pre = /Amino Acid Sequence[\s\S]*?<PRE[^>]*>([\s\S]*?)<\/PRE>/i.exec(html);
   if (pre) sequence = pre[1].replace(/\s+/g, '');
 
+  const uniprotHref = /https?:\/\/(?:www\.)?uniprot\.org\/(?:uniprot|uniprotkb)\/([A-Z0-9]+)/i.exec(html);
+  const uniprot = uniprotHref?.[1] || undefined;
+
   return {
     orf,
     annotations,
@@ -57,6 +60,7 @@ function parseGenePage(html, orf) {
     omegaPeak: peak ? Number(peak[1]) : undefined,
     omegaLower: peak ? Number(peak[2]) : undefined,
     sequence: sequence || undefined,
+    uniprot,
   };
 }
 
@@ -113,6 +117,7 @@ for (const row of results) {
   if (row.omegaPeak !== undefined) compact.op = row.omegaPeak;
   if (row.omegaLower !== undefined) compact.ol = row.omegaLower;
   if (row.sequence) compact.s = row.sequence;
+  if (row.uniprot) compact.up = row.uniprot;
   genes[row.orf] = compact;
 }
 

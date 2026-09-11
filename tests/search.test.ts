@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { searchGenes } from '../src/lib/search';
+import { searchGenes, searchGenesParsed } from '../src/lib/search';
 import type { Gene } from '../src/lib/types';
 
 function g(orf: string, gene: string | null, annotation: string, category: Gene['category'] = 'metabolism'): Gene {
-  return { orf, gene, name: gene ?? orf, start: 1, end: 2, strand: '+', length: 100, bp: 300, annotation, category };
+  return { orf, gene, name: gene ?? orf, start: 1, end: 2, strand: '+', length: 100, bp: 300, annotation, category, uniprot: null };
 }
 
 const genes: Gene[] = [
@@ -39,8 +39,29 @@ describe('searchGenes', () => {
     expect(searchGenes(genes, '   ')).toEqual([]);
   });
 
-  it('requires every whitespace-separated term to match', () => {
+  it('requires every whitespace-separated catalog term to match', () => {
     expect(searchGenes(genes, 'gyrase subunit A').length).toBeGreaterThan(0);
     expect(searchGenes(genes, 'gyrase zzz')).toEqual([]);
+  });
+
+  it('keeps catalog hits when extra tokens are not in the catalog', () => {
+    const { hits, parsed } = searchGenesParsed(genes, 'Rv1908c rifampin');
+    expect(parsed.catalogQuery).toBe('Rv1908c');
+    expect(parsed.extraTerms).toBe('rifampin');
+    expect(hits[0]?.gene.orf).toBe('Rv1908c');
+  });
+
+  it('treats a term that matches no gene as extra-only', () => {
+    const { hits, parsed } = searchGenesParsed(genes, 'essential');
+    expect(parsed.catalogQuery).toBe('');
+    expect(parsed.extraTerms).toBe('essential');
+    expect(hits).toEqual([]);
+  });
+
+  it('still AND-matches annotation phrases such as PPE family members', () => {
+    const ppe = [...genes, g('Rv0355c', null, 'PPE family protein PPE1', 'pe-ppe')];
+    const { hits, parsed } = searchGenesParsed(ppe, 'PPE');
+    expect(parsed.extraTerms).toBe('');
+    expect(hits.map((h) => h.gene.orf)).toContain('Rv0355c');
   });
 });

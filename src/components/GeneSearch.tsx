@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import type { Gene } from '../lib/types';
-import { searchGenes } from '../lib/search';
+import { searchGenesParsed } from '../lib/search';
 import { highlight } from '../lib/format';
 import { navigate } from '../lib/router';
+import { lookupStatePath, DEFAULT_LOOKUP_STATE } from '../lib/lookupState';
 import { CategoryTag } from './common';
 
 interface Props {
@@ -34,7 +35,9 @@ export function GeneSearch({ genes, variant = 'nav', placeholder, autoFocus, onP
   const listboxId = `${id}-results`;
   const statusId = `${id}-status`;
 
-  const hits = useMemo(() => (query.trim() ? searchGenes(genes, query, 8) : []), [genes, query]);
+  const parsed = useMemo(() => (query.trim() ? searchGenesParsed(genes, query, 8) : null), [genes, query]);
+  const hits = parsed?.hits ?? [];
+  const extraTerms = parsed?.parsed.extraTerms ?? '';
 
   useEffect(() => setActive(0), [query]);
 
@@ -50,6 +53,7 @@ export function GeneSearch({ genes, variant = 'nav', placeholder, autoFocus, onP
     setOpen(false);
     setQuery('');
     if (onPick) onPick(gene);
+    else if (extraTerms) navigate(lookupStatePath({ ...DEFAULT_LOOKUP_STATE, gene: gene.orf, term: extraTerms }));
     else navigate(`gene/${gene.orf}`);
   };
 
@@ -74,6 +78,12 @@ export function GeneSearch({ genes, variant = 'nav', placeholder, autoFocus, onP
       } else if (hits[active]) {
         e.preventDefault();
         pick(hits[active].gene);
+      } else if (query.trim()) {
+        e.preventDefault();
+        setOpen(false);
+        const q = query.trim();
+        setQuery('');
+        navigate(lookupStatePath({ ...DEFAULT_LOOKUP_STATE, q }));
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -149,7 +159,11 @@ export function GeneSearch({ genes, variant = 'nav', placeholder, autoFocus, onP
               </button>
             ))
           ) : (
-            <div className="search-empty" role="presentation">No genes match “{query}”.</div>
+            <div className="search-empty" role="presentation">
+              {extraTerms && !parsed?.parsed.catalogQuery
+                ? `No catalog gene for “${query}”. Press Enter in GeneLookup to search papers.`
+                : `No genes match “${query}”.`}
+            </div>
           )}
         </div>
       ) : null}

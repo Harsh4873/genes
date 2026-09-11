@@ -8,7 +8,7 @@
 // category calls are curated per gene and are approximated, not reproduced.
 //
 // Run: node scripts/build-dataset.mjs
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,9 +16,17 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const UPSTREAM_URL = 'https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html';
 export const SNAPSHOT_PATH = 'scripts/source/H37Rv.prot_table.html';
+export const UNIPROT_MAP_PATH = 'scripts/source/uniprot-h37rv.json';
 
 const SRC = resolve(here, '../', SNAPSHOT_PATH);
+const UNIPROT_MAP = resolve(here, '../', UNIPROT_MAP_PATH);
 const OUT = resolve(here, '../public/data/genes.json');
+
+function loadUniprotMap() {
+  if (!existsSync(UNIPROT_MAP)) return {};
+  const raw = JSON.parse(readFileSync(UNIPROT_MAP, 'utf8'));
+  return raw.accessions && typeof raw.accessions === 'object' ? raw.accessions : {};
+}
 
 // Ordered, most-specific-first. The first matching rule wins.
 // key === category id used across the app (see src/lib/categories.ts).
@@ -76,6 +84,16 @@ export function buildDataset() {
 
   genes.sort((a, b) => a.s - b.s);
 
+  const uniprot = loadUniprotMap();
+  let withUniprot = 0;
+  for (const g of genes) {
+    const accession = uniprot[g.o];
+    if (typeof accession === 'string' && accession.trim()) {
+      g.u = accession.trim();
+      withUniprot += 1;
+    }
+  }
+
   const byCat = {};
   for (const g of genes) byCat[g.c] = (byCat[g.c] || 0) + 1;
 
@@ -83,7 +101,7 @@ export function buildDataset() {
     metadata: {
       schema: {
         name: 'mtbscope-gene-catalog',
-        version: 1,
+        version: 2,
       },
       source: {
         name: 'TB Genome Portal H37Rv protein table',
@@ -99,7 +117,7 @@ export function buildDataset() {
     },
     organism: 'Mycobacterium tuberculosis H37Rv',
     source: 'H37Rv reference annotation (protein table via the TB Genome Portal, orca2.tamu.edu/U19)',
-    note: 'Catalog fields (ORF, gene, coordinates, strand, length, annotation) are the reference annotation. Functional category is assigned by keyword heuristic.',
+    note: 'Catalog fields (ORF, gene, coordinates, strand, length, annotation) are the reference annotation. UniProt accessions are from proteome UP000001584, with portal gene-page fallbacks when the proteome omits an ORF. Functional category is assigned by keyword heuristic.',
     count: genes.length,
     categories: byCat,
     genes,
@@ -107,7 +125,7 @@ export function buildDataset() {
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(payload));
-  console.log(`Wrote ${genes.length} genes -> ${OUT}`);
+  console.log(`Wrote ${genes.length} genes -> ${OUT} (${withUniprot} with UniProt accessions)`);
   console.log('Category distribution:');
   for (const [k, v] of Object.entries(byCat).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${k.padEnd(16)} ${v}`);

@@ -27,6 +27,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
   const route = useRoute();
   const compare = useCompare();
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [enrichment, setEnrichment] = useState<Map<string, PortalGeneEnrichment>>(new Map());
 
   const canonicalGenes = (orfs: string[]) => {
@@ -64,7 +65,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
   }, [compare, route.params.genes]);
 
   useEffect(() => {
-    loadPortalEnrichment().then(setEnrichment);
+    loadPortalEnrichment().then(setEnrichment).catch(() => setEnrichment(new Map()));
   }, []);
 
   const genes = useMemo(
@@ -74,7 +75,14 @@ export function Compare({ dataset }: { dataset: Dataset }) {
 
   const share = () => {
     const url = `${location.origin}${location.pathname}#/${routePathForGenes(compare)}`;
-    navigator.clipboard?.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }).catch(() => {});
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setCopyError(false);
+      setTimeout(() => setCopied(false), 1600);
+    }).catch(() => {
+      setCopied(false);
+      setCopyError(true);
+    });
   };
 
   if (!genes.length) {
@@ -123,6 +131,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
             <GeneSearch genes={dataset.genes} placeholder="Add a gene..." onPick={(g) => setCompared([...compare, g.orf])} />
           </div>
           <button className="btn btn-sm" onClick={share} disabled={!compare.length}>{copied ? <><Check size={15} /> Copied</> : <><Share2 size={15} /> Share</>}</button>
+          {copyError ? <span className="faint" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
           <button className="btn btn-ghost btn-sm" onClick={() => setCompared([])}><Trash2 size={15} /> Clear</button>
         </div>
       </div>

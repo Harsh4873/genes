@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowRight, Columns3, FlaskConical, Table2, Database, Microscope } from 'lucide-react';
+import { ArrowRight, Columns3, FlaskConical, Table2, Database, Microscope, BookOpen } from 'lucide-react';
 import type { Dataset } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
 import { href, navigate } from '../lib/router';
@@ -38,7 +38,8 @@ export function Home({ dataset }: { dataset: Dataset }) {
         <h1>The tuberculosis genome, built for comparison.</h1>
         <p className="lede">
           Search the H37Rv catalog and open lean gene pages with portal annotations, TMHMM topology, GenomegaMap omega plots,
-          lineage pN/pS, and protein sequence — then compare genes side by side.
+          lineage pN/pS, protein sequence, and papers — then compare genes side by side. Add a term after a gene
+          (<span className="mono">Rv0001 rifampin</span>) to jump into literature.
         </p>
         <div className="hero-search">
           <GeneSearch genes={dataset.genes} variant="hero" placeholder="Try katG, Rv0667, gyrase, or “efflux transporter”…" />
@@ -49,6 +50,7 @@ export function Home({ dataset }: { dataset: Dataset }) {
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
           <a className="btn btn-primary" href={href('browse')}><Table2 size={16} /> Browse genes</a>
+          <a className="btn" href={href('lookup')}><BookOpen size={16} /> GeneLookup</a>
           <a className="btn" href={href('compare')}><Columns3 size={16} /> Open comparison panel</a>
         </div>
         <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -102,6 +104,11 @@ export function Home({ dataset }: { dataset: Dataset }) {
           </div>
 
           <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+            <a className="link-card" href={href('lookup')}>
+              <h3><BookOpen size={18} style={{ color: 'var(--accent)' }} /> GeneLookup</h3>
+              <p>Find a gene, optionally add a term such as rifampin or essential, and read the papers that pair them.</p>
+              <span className="btn btn-ghost btn-sm" style={{ marginTop: 10, paddingLeft: 0 }}>Look up a gene <ArrowRight size={15} /></span>
+            </a>
             <a className="link-card" href={href('selection')}>
               <h3><FlaskConical size={18} style={{ color: 'var(--accent)' }} /> Selection Lab</h3>
               <p>A genome-wide differential-selection workspace. Passphrase required — the dataset is published encrypted.</p>

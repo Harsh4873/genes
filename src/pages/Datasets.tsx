@@ -31,6 +31,8 @@ export function Datasets({ dataset }: { dataset: Dataset }) {
             <h3>Freshness model</h3>
             <p className="dim">
               <span className="mono">npm run data:check</span> compares the checked-in protein table with the live portal table.
+              Monday's workflow also re-scrapes enrichment when that snapshot is more than seven days old, so gene pages
+              can refresh without waiting for the protein table to change.
               <span className="mono"> npm run data:enrich</span> re-scrapes per-gene portal pages for annotations, pN/pS and sequence.
             </p>
             <div className="source-actions">

@@ -1,6 +1,6 @@
-import { useMemo, useState, Fragment } from 'react';
-import { ArrowLeft, ArrowRight, Columns3, Check, Plus, ExternalLink, Link2, TriangleAlert } from 'lucide-react';
-import type { Dataset } from '../lib/types';
+import { useEffect, useMemo, useState, Fragment } from 'react';
+import { ArrowLeft, ArrowRight, Columns3, Check, Plus, ExternalLink, Link2, TriangleAlert, RefreshCw, BookOpen } from 'lucide-react';
+import type { Dataset, Gene } from '../lib/types';
 import { category } from '../lib/categories';
 import { EXTERNAL_LINKS } from '../lib/external';
 import { href } from '../lib/router';
@@ -8,9 +8,11 @@ import { fmtCoord, fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
 import { annotationRows, formatPnps } from '../lib/portalEnrichment';
 import { usePortalEnrichment } from '../lib/usePortalEnrichment';
+import { geneLiterature, type GeneLiterature, type LiteratureSort } from '../lib/literature';
 import { CategoryTag, Provenance, SectionTitle, SourceBadge, StrandBadge } from '../components/common';
 import { OmegaPlot, TmhmmPlot } from '../components/Charts';
 import { PortalFigure } from '../components/PortalFigure';
+import { LiteratureSortToggles, PaperList } from '../components/Papers';
 import { derive } from '../lib/derive';
 import {
   portalGenePage,
@@ -30,7 +32,8 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const gene = dataset.byOrf.get(orf);
   const compare = useCompare();
   const [copied, setCopied] = useState(false);
-  const { enrichment, loading } = usePortalEnrichment(gene?.orf);
+  const [copyError, setCopyError] = useState(false);
+  const { enrichment, loading, error: enrichmentError, retry } = usePortalEnrichment(gene?.orf);
 
   const geneIndex = useMemo(
     () => (gene ? dataset.genes.findIndex((g) => g.orf === gene.orf) : -1),
@@ -45,8 +48,11 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
         <div className="empty-state">
           <TriangleAlert size={30} />
           <h2>No gene “{orf}”</h2>
-          <p className="dim">That identifier isn't in the H37Rv catalog. Try a search from the top bar.</p>
-          <a className="btn" href={href('browse')} style={{ marginTop: 12 }}><ArrowLeft size={15} /> Back to browser</a>
+          <p className="dim">That identifier isn't in the H37Rv catalog. Try a search from the top bar, or look it up as a paper term.</p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+            <a className="btn" href={href('browse')}><ArrowLeft size={15} /> Back to browser</a>
+            <a className="btn btn-primary" href={href(`lookup?q=${encodeURIComponent(orf)}`)}>Search GeneLookup</a>
+          </div>
         </div>
       </div>
     );
@@ -55,7 +61,8 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const d = derive(gene);
   const inCompare = compareStore.has(gene.orf);
   const c = category(gene.category);
-  const portalHref = EXTERNAL_LINKS.find((l) => l.id === 'tbportal')?.href(gene.orf, gene.gene);
+  const portalHref = EXTERNAL_LINKS.find((l) => l.id === 'tbportal')?.href(gene);
+  const keggHref = EXTERNAL_LINKS.find((l) => l.id === 'kegg')?.href(gene);
   const ann = annotationRows(enrichment, gene.annotation);
   const underSelection = enrichment?.underSelection ?? (enrichment?.omegaLower !== undefined ? enrichment.omegaLower > 1 : d.positiveSelection.underSelection);
   const peak = enrichment?.omegaPeak ?? d.positiveSelection.peakOmega;
@@ -64,10 +71,15 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const pnps = enrichment?.pnps;
 
   const copyLink = () => {
-    navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/gene/${gene.orf}`).then(() => {
+    const url = `${location.origin}${location.pathname}#/gene/${gene.orf}`;
+    navigator.clipboard?.writeText(url).then(() => {
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 1600);
-    }).catch(() => {});
+    }).catch(() => {
+      setCopied(false);
+      setCopyError(true);
+    });
   };
 
   return (
@@ -108,6 +120,7 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           {compare.length ? <a className="btn" href={href('compare')}><Columns3 size={16} /> {compare.length}</a> : null}
           {portalHref ? <a className="btn" href={portalHref} target="_blank" rel="noopener noreferrer">TB Portal <ExternalLink size={14} /></a> : null}
           <button className="btn btn-ghost" onClick={copyLink} title="Copy link">{copied ? <Check size={16} /> : <Link2 size={16} />}</button>
+          {copyError ? <span className="faint" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
         </div>
       </div>
 
@@ -151,6 +164,8 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
                 <dd>{fmtInt(gene.bp)} bp (with stop) · {fmtInt(gene.length)} aa</dd>
                 <dt>Gene name</dt>
                 <dd>{gene.gene ?? <span className="faint">—</span>}</dd>
+                <dt>UniProt</dt>
+                <dd className="mono">{gene.uniprot ?? <span className="faint">—</span>}</dd>
               </dl>
             </div>
           </div>
@@ -252,6 +267,11 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
                 <dt>Lineage L3</dt><dd className="tabnum">{formatPnps(pnps.L3)}</dd>
                 <dt>Lineage L4</dt><dd className="tabnum">{formatPnps(pnps.L4)}</dd>
               </dl>
+            ) : enrichmentError ? (
+              <p className="dim" style={{ margin: 0, fontSize: 13.5 }}>
+                Couldn’t load portal enrichment ({enrichmentError}).{' '}
+                <button type="button" className="btn btn-sm" onClick={retry}><RefreshCw size={13} /> Retry</button>
+              </p>
             ) : (
               <p className="dim" style={{ margin: 0, fontSize: 13.5 }}>
                 {loading ? 'Loading lineage pN/pS…' : 'pN/pS not in the local enrichment snapshot yet — open the TB Portal gene page.'}
@@ -268,10 +288,15 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
               <pre className="seq">{formatSequence(sequence)}</pre>
             ) : (
               <p className="dim" style={{ margin: 0, fontSize: 13.5 }}>
-                {loading ? 'Loading sequence…' : (
+                {loading ? 'Loading sequence…' : enrichmentError ? (
+                  <>
+                    Couldn’t load the sequence snapshot.{' '}
+                    <button type="button" className="btn btn-sm" onClick={retry}><RefreshCw size={13} /> Retry</button>
+                  </>
+                ) : (
                   <>
                     Sequence not cached locally.{' '}
-                    <a href={`https://www.genome.jp/dbget-bin/www_bget?mtu:${gene.orf}`} target="_blank" rel="noopener noreferrer">
+                    <a href={keggHref} target="_blank" rel="noopener noreferrer">
                       Open on KEGG <ExternalLink size={12} />
                     </a>
                   </>
@@ -288,13 +313,28 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
             </div>
             <div className="ext-links">
               {EXTERNAL_LINKS.map((l) => (
-                <a key={l.id} className="ext-link" href={l.href(gene.orf, gene.gene)} target="_blank" rel="noopener noreferrer">
+                <a key={l.id} className="ext-link" href={l.href(gene)} target="_blank" rel="noopener noreferrer">
                   <span className="el-name">{l.label} <ExternalLink size={11} style={{ opacity: 0.6 }} /></span>
-                  <span className="el-desc">{l.desc}</span>
+                  <span className="el-desc">{l.note?.(gene) ?? l.desc}</span>
                 </a>
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="section">
+        <SectionTitle
+          aside={
+            <a className="btn btn-sm" href={href(`lookup?gene=${encodeURIComponent(gene.orf)}`)}>
+              <BookOpen size={14} /> Open in GeneLookup
+            </a>
+          }
+        >
+          Literature
+        </SectionTitle>
+        <div className="card card-pad">
+          <GenePapers gene={gene} />
         </div>
       </div>
 
@@ -306,5 +346,36 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
         </Provenance>
       </div>
     </div>
+  );
+}
+
+function GenePapers({ gene }: { gene: Gene }) {
+  const [papers, setPapers] = useState<GeneLiterature | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useState<LiteratureSort>('cited');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPapers(null);
+    setError(null);
+    setBusy(true);
+    geneLiterature(gene, { limit: 12, sort, signal: controller.signal })
+      .then(setPapers)
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+    return () => controller.abort();
+  }, [gene, sort]);
+
+  return (
+    <>
+      <LiteratureSortToggles value={sort} onChange={setSort} />
+      <PaperList papers={papers} busy={busy} error={error} gene={gene} />
+    </>
   );
 }

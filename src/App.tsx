@@ -111,7 +111,10 @@ export default function App() {
               <TriangleAlert size={30} />
               <h1 style={{ fontSize: 24 }}>No page for “{route.requestedPath}”</h1>
               <p className="dim">That link does not match a MtbScope route.</p>
-              <a className="btn btn-primary" href={href('browse')} style={{ marginTop: 12 }}>Browse genes</a>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                <a className="btn" href={href('browse')}>Browse genes</a>
+                <a className="btn btn-primary" href={href('lookup')}>GeneLookup</a>
+              </div>
             </div>
           </div>
         );

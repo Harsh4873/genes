@@ -25,6 +25,7 @@ export interface RawGene {
   l: number; // protein length (aa)
   a: string; // annotation
   c: CategoryId;
+  u?: string; // UniProt accession, when mapped
 }
 
 export interface CatalogMetadata {
@@ -58,6 +59,8 @@ export interface Gene {
   bp: number; // nucleotides
   annotation: string;
   category: CategoryId;
+  /** Swiss-Prot / TrEMBL accession when the catalog mapping has one. */
+  uniprot: string | null;
 }
 
 export interface Dataset {
