@@ -15,7 +15,7 @@ function rawDataset(source = 'test source') {
     count: 1,
     categories: { unclassified: 1 },
     genes: [
-      { o: 'Rv0001', g: 'geneA', s: 1, e: 300, d: '+' as const, l: 100, a: 'annotation', c: 'unclassified' },
+      { o: 'Rv0001', g: 'geneA', s: 1, e: 300, d: '+' as const, l: 100, a: 'annotation', c: 'unclassified', u: undefined as string | undefined },
     ],
   };
 }
@@ -38,10 +38,15 @@ describe('dataset validation and loading', () => {
     expect(validateDataset(publishedDataset).genes).toHaveLength(publishedDataset.count);
   });
 
-  it('validates JSON and builds a lookup map', () => {
-    const dataset = validateDataset(rawDataset());
-    expect(dataset.count).toBe(1);
-    expect(dataset.byOrf.get('Rv0001')).toMatchObject({ name: 'geneA', bp: 300 });
+  it('accepts an optional UniProt accession and rejects a malformed one', () => {
+    const withAccession = rawDataset();
+    withAccession.genes[0] = { ...withAccession.genes[0], u: 'P9WNW3' };
+    expect(validateDataset(withAccession).byOrf.get('Rv0001')?.uniprot).toBe('P9WNW3');
+    const bad = rawDataset();
+    expect(() => validateDataset({
+      ...bad,
+      genes: [{ ...bad.genes[0], u: 'Rv0001' }],
+    })).toThrow(/UniProt accession/);
   });
 
   it('rejects inconsistent and duplicate records', () => {

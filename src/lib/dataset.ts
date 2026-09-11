@@ -61,6 +61,16 @@ function validateMetadata(value: unknown): CatalogMetadata {
   };
 }
 
+function readUniprot(value: unknown, prefix: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') fail(`${prefix}.u must be a string if present`);
+  const accession = value.trim();
+  if (!/^[A-NR-Z][0-9][A-Z][A-Z0-9]{2}[0-9]([A-Z][A-Z0-9]{2}[0-9])?$|^[OPQ][0-9][A-Z0-9]{3}[0-9]$/.test(accession)) {
+    fail(`${prefix}.u is not a UniProt accession`);
+  }
+  return accession;
+}
+
 function validateRawGene(value: unknown, index: number): RawGene {
   if (!isRecord(value)) fail(`genes[${index}] must be an object`);
   const prefix = `genes[${index}]`;
@@ -75,7 +85,8 @@ function validateRawGene(value: unknown, index: number): RawGene {
   const a = readString(value, 'a');
   const c = readString(value, 'c');
   if (!CATEGORY_IDS.has(c)) fail(`${prefix}.c is not a known category`);
-  return { o, g, s, e, d: value.d, l, a, c: c as RawGene['c'] };
+  const u = readUniprot(value.u, prefix);
+  return { o, g, s, e, d: value.d, l, a, c: c as RawGene['c'], ...(u ? { u } : {}) };
 }
 
 function expand(r: RawGene): Gene {
@@ -90,6 +101,7 @@ function expand(r: RawGene): Gene {
     bp: Math.abs(r.e - r.s) + 1,
     annotation: r.a,
     category: r.c,
+    uniprot: r.u ?? null,
   };
 }
 

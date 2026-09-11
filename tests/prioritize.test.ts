@@ -27,6 +27,7 @@ function gene(over: Partial<Gene> & { orf: string }): Gene {
     bp: 900,
     annotation: 'Conserved hypothetical protein',
     category: 'hypothetical' as CategoryId,
+    uniprot: null,
     ...over,
     name: over.gene ?? over.orf,
   };
@@ -83,6 +84,7 @@ describe('literature queries', () => {
   it('pairs the identifiers with the organism, and scopes counts to title and abstract', () => {
     expect(geneQuery(CATALOG[0])).toBe('(TITLE_ABS:"Rv0290" OR TITLE_ABS:"eccD3") AND (tuberculosis OR mycobacterium)');
     expect(geneQuery(CATALOG[0], 'full-text')).toBe('("Rv0290" OR "eccD3") AND (tuberculosis OR mycobacterium)');
+    expect(geneQuery(CATALOG[0], 'title-abstract', 'rifampin')).toContain('TITLE_ABS:"rifampin"');
   });
 
   it('uses the locus alone when the gene has no symbol', () => {
@@ -231,11 +233,13 @@ describe('GeneLookup URL state', () => {
     const state = {
       ...DEFAULT_LOOKUP_STATE,
       gene: 'Rv0290',
+      term: 'rifampin',
       weights: { ...DEFAULT_WEIGHTS, selection: 2, literature: 0 },
       pathways: ['regulatory' as CategoryId],
       page: 3,
     };
     const path = lookupStatePath(state);
+    expect(path).toContain('term=rifampin');
     expect(parseLookupState(parseHash(`#/${path}`).params)).toEqual(state);
   });
 

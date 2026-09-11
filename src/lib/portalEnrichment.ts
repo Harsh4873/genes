@@ -22,6 +22,7 @@ export interface PortalGeneEnrichment {
   omegaPeak?: number;
   omegaLower?: number;
   sequence?: string;
+  uniprot?: string;
 }
 
 interface PortalEnrichmentFile {
@@ -35,6 +36,7 @@ interface PortalEnrichmentFile {
     op?: number;
     ol?: number;
     s?: string;
+    up?: string;
   }>;
 }
 
@@ -51,13 +53,19 @@ function expand(raw: PortalEnrichmentFile['genes'][string]): PortalGeneEnrichmen
     omegaPeak: raw.op,
     omegaLower: raw.ol,
     sequence: raw.s,
+    uniprot: raw.up,
   };
+}
+
+export function resetPortalEnrichmentCache(): void {
+  cache = null;
+  loadPromise = null;
 }
 
 export async function loadPortalEnrichment(): Promise<Map<string, PortalGeneEnrichment>> {
   if (cache) return cache;
   if (!loadPromise) {
-    loadPromise = fetch(DATA_URL)
+    const request = fetch(DATA_URL)
       .then(async (res) => {
         if (!res.ok) throw new Error(`portal enrichment HTTP ${res.status}`);
         const data = (await res.json()) as PortalEnrichmentFile;
@@ -66,10 +74,11 @@ export async function loadPortalEnrichment(): Promise<Map<string, PortalGeneEnri
         cache = map;
         return map;
       })
-      .catch(() => {
-        cache = new Map();
-        return cache;
+      .catch((error) => {
+        if (loadPromise === request) loadPromise = null;
+        throw error;
       });
+    loadPromise = request;
   }
   return loadPromise;
 }

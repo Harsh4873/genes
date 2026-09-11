@@ -19,7 +19,8 @@ export function About() {
           <li>Product annotations from TBDB, RefSeq, PATRIC, TubercuList and NCBI (scraped from the portal gene pages).</li>
           <li>Coordinates, length, operon figure, TMHMM topology GIF and GenomegaMap omega PNG from the published portal assets.</li>
           <li>Culviner lineage pN/pS values and amino-acid sequence from the portal enrichment snapshot.</li>
-          <li>Working links to variants, the 10k-genome collection, Mycobrowser, KEGG, UniProt and the original portal page.</li>
+          <li>Working links to variants, the 10k-genome collection, Mycobrowser, KEGG, UniProt, AlphaFold DB, STRING, NCBI and the original portal page.</li>
+          <li>Literature on the gene page and in GeneLookup, with PubMed / PMC / DOI links and UniProt citations when an accession is known.</li>
         </ul>
       </div>
 

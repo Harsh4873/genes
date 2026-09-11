@@ -4,7 +4,7 @@ import { CONDITIONS, ESSENTIALITY_DATASETS } from '../src/lib/conditions';
 import type { Gene } from '../src/lib/types';
 
 function g(orf: string, gene: string | null, category: Gene['category'], length = 300): Gene {
-  return { orf, gene, name: gene ?? orf, start: 1, end: length * 3, strand: '+', length, bp: length * 3, annotation: 'x', category };
+  return { orf, gene, name: gene ?? orf, start: 1, end: length * 3, strand: '+', length, bp: length * 3, annotation: 'x', category, uniprot: null };
 }
 
 describe('derive', () => {

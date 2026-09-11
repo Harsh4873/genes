@@ -13,11 +13,11 @@ import {
 import type { CategoryId, Dataset, Gene } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
 import { href, navigate, useRoute } from '../lib/router';
-import { searchGenes } from '../lib/search';
+import { searchGenesParsed } from '../lib/search';
 import { loadSelection, unlockedSelection, type SelectionDataset } from '../lib/selection';
 import { LockedError, passphraseStore } from '../lib/lockbox';
 import { loadPortalEnrichment, type PortalGeneEnrichment } from '../lib/portalEnrichment';
-import { geneLiterature, literatureCounts, type GeneLiterature, type Paper } from '../lib/literature';
+import { geneLiterature, literatureCounts, termLiterature, type GeneLiterature, type LiteratureSort } from '../lib/literature';
 import {
   SIGNAL_META,
   SIGNALS,
@@ -30,6 +30,7 @@ import {
 import { lookupStatePath, parseLookupState, type LookupState } from '../lib/lookupState';
 import { EXTERNAL_LINKS } from '../lib/external';
 import { CategoryTag, SectionTitle, SourceBadge } from '../components/common';
+import { LiteratureSortToggles, PaperList } from '../components/Papers';
 
 /** How many genes get a literature fetch when you ask for one. */
 const SHORTLIST = 40;
@@ -49,7 +50,11 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
 
   useEffect(() => {
     let alive = true;
-    void loadPortalEnrichment().then((map) => alive && setEnrichment(map));
+    void loadPortalEnrichment()
+      .then((map) => alive && setEnrichment(map))
+      .catch(() => {
+        // Ranking still works without enrichment; gene pages surface the fetch error.
+      });
     return () => {
       alive = false;
     };
@@ -65,8 +70,14 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
       .catch(() => passphraseStore.clear());
   }, []);
 
-  const hits = useMemo(() => (state.q ? searchGenes(dataset.genes, state.q, 12) : []), [dataset.genes, state.q]);
+  const parsedSearch = useMemo(
+    () => (state.q ? searchGenesParsed(dataset.genes, state.q, 12) : null),
+    [dataset.genes, state.q],
+  );
+  const hits = parsedSearch?.hits ?? [];
+  const typedExtra = parsedSearch?.parsed.extraTerms ?? '';
   const gene = state.gene ? dataset.byOrf.get(state.gene) ?? null : null;
+  const extraTerms = (state.term || (!gene ? typedExtra : '')).trim();
 
   const ranked = useMemo(
     () =>
@@ -90,7 +101,8 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
           </h1>
           <p className="dim" style={{ marginTop: 6, maxWidth: 720 }}>
             Look up any of the {dataset.count.toLocaleString()} H37Rv genes and read what has been published about it —
-            then rank the whole genome by what makes a gene worth your time.
+            then rank the whole genome by what makes a gene worth your time. Add a term after a gene
+            (<span className="mono">Rv0001 rifampin</span>, <span className="mono">katG essential</span>) to filter papers.
           </p>
         </div>
       </div>
@@ -101,8 +113,8 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
           <input
             value={state.q}
             onChange={(e) => set({ q: e.target.value, page: 0 })}
-            placeholder="eccD3, Rv0205, alpha-mannosidase, type VII secretion…"
-            aria-label="Search genes"
+            placeholder="Rv0001 rifampin, katG, PPE, essential…"
+            aria-label="Search genes, optionally with an extra paper term"
             spellCheck={false}
           />
           {state.q ? (
@@ -114,7 +126,15 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
 
         {state.q && !hits.length ? (
           <p className="dim" style={{ margin: '10px 2px 0', fontSize: 13.5 }}>
-            Nothing in the catalog matches “{state.q}”.
+            {typedExtra && !parsedSearch?.parsed.catalogQuery
+              ? <>Nothing in the catalog is named “{state.q}”. Papers below are for that term in <i>M. tuberculosis</i>.</>
+              : <>Nothing in the catalog matches “{state.q}”.</>}
+          </p>
+        ) : null}
+
+        {typedExtra && hits.length ? (
+          <p className="dim" style={{ margin: '10px 2px 0', fontSize: 13.5 }}>
+            Showing genes for “{parsedSearch?.parsed.catalogQuery}”. Papers will include “{typedExtra}”.
           </p>
         ) : null}
 
@@ -125,7 +145,7 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
                 key={hit.gene.orf}
                 type="button"
                 className="gene-hit"
-                onClick={() => set({ gene: hit.gene.orf, q: '' })}
+                onClick={() => set({ gene: hit.gene.orf, term: typedExtra, q: '' })}
               >
                 <span className="gene-hit-name">
                   <span className="mono">{hit.gene.orf}</span>
@@ -141,11 +161,14 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
       {gene ? (
         <GenePanel
           gene={gene}
+          extraTerms={state.term}
           selection={selection}
           enrichment={enrichment?.get(gene.orf) ?? null}
-          onClose={() => set({ gene: '' })}
+          onClose={() => set({ gene: '', term: '' })}
           onUnlocked={setSelection}
         />
+      ) : extraTerms && !hits.length ? (
+        <TermPanel term={extraTerms} />
       ) : null}
 
       <Prioritize
@@ -155,7 +178,7 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
         onWeights={(weights) => set({ weights, page: 0 })}
         onPathways={(pathways) => set({ pathways, page: 0 })}
         onPage={(page) => set({ page })}
-        onPick={(orf) => set({ gene: orf })}
+        onPick={(orf) => set({ gene: orf, term: extraTerms })}
         onLiterature={setLiterature}
         literature={literature}
       />
@@ -225,30 +248,18 @@ function fmt(value: number | null | undefined, digits: number): string {
   return value === null || value === undefined || Number.isNaN(value) ? '—' : value.toFixed(digits);
 }
 
-function GenePanel({
-  gene,
-  selection,
-  enrichment,
-  onClose,
-  onUnlocked,
-}: {
-  gene: Gene;
-  selection: SelectionDataset | null;
-  enrichment: PortalGeneEnrichment | null;
-  onClose: () => void;
-  onUnlocked: (data: SelectionDataset) => void;
-}) {
+function TermPanel({ term }: { term: string }) {
   const [papers, setPapers] = useState<GeneLiterature | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const row = selection?.byOrf.get(gene.orf) ?? null;
+  const [sort, setSort] = useState<LiteratureSort>('relevance');
 
   useEffect(() => {
     const controller = new AbortController();
     setPapers(null);
     setError(null);
     setBusy(true);
-    geneLiterature(gene, 25, controller.signal)
+    termLiterature(term, { limit: 25, sort, signal: controller.signal })
       .then(setPapers)
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -258,7 +269,70 @@ function GenePanel({
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
-  }, [gene.orf]);
+  }, [term, sort]);
+
+  return (
+    <section className="card card-pad gene-panel-card">
+      <div className="gene-panel-head">
+        <div>
+          <h2>Papers for “{term}”</h2>
+          <p className="dim">No catalog gene matched that token, so this is an organism-scoped literature search.</p>
+        </div>
+      </div>
+      <LiteratureSortToggles value={sort} onChange={setSort} />
+      <PaperList
+        papers={papers}
+        busy={busy}
+        error={error}
+        extraTerms={term}
+        gene={null}
+        empty={`No papers pairing “${term}” with tuberculosis / mycobacterium.`}
+      />
+    </section>
+  );
+}
+
+function GenePanel({
+  gene,
+  extraTerms,
+  selection,
+  enrichment,
+  onClose,
+  onUnlocked,
+}: {
+  gene: Gene;
+  extraTerms: string;
+  selection: SelectionDataset | null;
+  enrichment: PortalGeneEnrichment | null;
+  onClose: () => void;
+  onUnlocked: (data: SelectionDataset) => void;
+}) {
+  const [papers, setPapers] = useState<GeneLiterature | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useState<LiteratureSort>(extraTerms ? 'relevance' : 'cited');
+  const row = selection?.byOrf.get(gene.orf) ?? null;
+
+  useEffect(() => {
+    setSort(extraTerms ? 'relevance' : 'cited');
+  }, [gene.orf, extraTerms]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPapers(null);
+    setError(null);
+    setBusy(true);
+    geneLiterature(gene, { limit: 25, extraTerms, sort, signal: controller.signal })
+      .then(setPapers)
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+    return () => controller.abort();
+  }, [gene, extraTerms, sort]);
 
   return (
     <section className="card card-pad gene-panel-card">
@@ -279,6 +353,7 @@ function GenePanel({
             <a className="chip" href={href(`gene/${gene.orf}`)}>
               Full gene page
             </a>
+            {extraTerms ? <span className="chip-static">papers + {extraTerms}</span> : null}
           </div>
         </div>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Close gene">
@@ -330,8 +405,8 @@ function GenePanel({
               <a
                 key={link.id}
                 className="chip"
-                href={link.href(gene.orf, gene.gene)}
-                title={link.desc}
+                href={link.href(gene)}
+                title={link.note?.(gene) ?? link.desc}
                 target="_blank"
                 rel="noreferrer noopener"
               >
@@ -350,48 +425,17 @@ function GenePanel({
           >
             Literature
           </SectionTitle>
-          {busy ? (
-            <p className="dim" style={{ fontSize: 13.5 }}>
-              <RefreshCw size={13} className="spin" aria-hidden /> Searching Europe PMC…
-            </p>
-          ) : error ? (
-            <p className="lock-error">{error}</p>
-          ) : papers && papers.papers.length ? (
-            <>
-              {papers.scope === 'full-text' ? (
-                <p className="faint" style={{ fontSize: 12.5, marginTop: 0 }}>
-                  Nothing names this gene in a title or abstract, so these are full-text matches.
-                </p>
-              ) : null}
-              <ul className="gene-papers">
-                {papers.papers.map((paper) => (
-                  <PaperRow key={paper.id} paper={paper} />
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p className="dim" style={{ fontSize: 13.5 }}>Nothing published names this gene yet.</p>
-          )}
+          <LiteratureSortToggles value={sort} onChange={setSort} />
+          <PaperList
+            papers={papers}
+            busy={busy}
+            error={error}
+            extraTerms={extraTerms}
+            gene={gene}
+          />
         </div>
       </div>
     </section>
-  );
-}
-
-function PaperRow({ paper }: { paper: Paper }) {
-  return (
-    <li className="gene-paper">
-      <a className="gene-paper-title" href={paper.url} target="_blank" rel="noreferrer noopener">
-        {paper.title}
-      </a>
-      <div className="gene-paper-meta">
-        {paper.journal ? <span>{paper.journal}</span> : null}
-        {paper.year ? <span>{paper.year}</span> : null}
-        {paper.citedBy !== null ? <span>{paper.citedBy.toLocaleString()} citations</span> : null}
-        {paper.isPreprint ? <span className="tag-preprint">Preprint</span> : null}
-        {paper.isOpenAccess ? <span className="tag-open">Open access</span> : null}
-      </div>
-    </li>
   );
 }
 

@@ -25,10 +25,15 @@ search, multi-facet browsing, and a side-by-side panel for four or more genes at
 Look up any of the 4,018 genes by symbol, locus tag or product, read what has been published about it, and rank the whole
 genome by how much a gene is worth your time.
 
-**Literature** comes from Europe PMC, with the gene's identifiers paired with the organism and scoped to title and
-abstract. The scoping is the whole trick: unscoped, `relA` returns 10,390 hits that are mostly reference lists; scoped, it
+**Literature** comes from Europe PMC (PubMed and PMC records, ranked, with PMID / PMCID / DOI deep-links) plus UniProt curated
+citations when the gene has an accession. The gene's identifiers — ORF, symbol, and UniProt accession — are paired with the organism and
+scoped to title and abstract. The scoping is the whole trick: unscoped, `relA` returns 10,390 hits that are mostly reference lists; scoped, it
 returns 214 papers actually about the gene. Scoping too hard would bury rarely-named loci, so when the scoped query finds
 nothing the search widens to full text rather than reporting an empty literature — `Rv0205` goes from 0 papers to 3.
+
+A query can mix a catalog gene with an extra term (`Rv0001 rifampin`, `rpoB essential`). Tokens that match the catalog still
+find the gene; tokens that match nothing are passed through to the paper query. A term with no gene at all (`essential`) searches
+papers without requiring a catalog hit.
 
 **GenePrioritize** scores every gene on eight signals: selection strength (ω), statistical significance, mutation count and
 cohort difference from the diabetes study; lineage selection, literature volume, pathway interest and annotation confidence
@@ -106,8 +111,9 @@ it is not; the statistics themselves are covered either way, and `tests/lockbox.
 
 ## Data
 
-- The gene **catalog** — locus (Rv id), gene symbol, coordinates, strand, protein length, and product description — is the
-  H37Rv reference annotation, shipped as a static asset (`public/data/genes.json`).
+- The gene **catalog** — locus (Rv id), gene symbol, coordinates, strand, protein length, product description, and UniProt accession — is the
+  H37Rv reference annotation, shipped as a static asset (`public/data/genes.json`). UniProt accessions come from proteome `UP000001584`, with a
+  portal gene-page fallback for the rare ORF the proteome omits. Rebuild the mapping with `npm run data:uniprot` then `npm run build:data`.
 - The catalog is built from the checked-in upstream snapshot at `scripts/source/H37Rv.prot_table.html`. Generated JSON records
   the schema version, canonical upstream URL, snapshot path, and SHA-256 checksum; it intentionally has no build timestamp, so
   rebuilding an unchanged snapshot is byte-for-byte reproducible.
@@ -131,16 +137,18 @@ it is not; the statistics themselves are covered either way, and `tests/lockbox.
 `https://orca2.tamu.edu/U19/pages/H37Rv3.prot_table.html` source and compares its bytes with the checked-in snapshot. It never
 writes files and exits nonzero when the source has drifted.
 
-A scheduled GitHub Action runs that check every Monday. **When drift is detected it automatically** runs
-`npm run data:refresh` and `npm run data:enrich`, commits the updated snapshot / `genes.json` / enrichment file to `main`,
-and redeploys Pages from that same workflow (bot pushes do not retrigger the normal Pages workflow). You can also trigger the
-same job manually from the Actions tab.
+A scheduled GitHub Action runs that check every Monday. **When the protein table has drifted, or when portal enrichment is
+more than seven days old**, it automatically runs `npm run data:refresh` (if needed) and `npm run data:enrich`, commits the
+updated snapshot / `genes.json` / enrichment file to `main`, and redeploys Pages from that same workflow (bot pushes do not
+retrigger the normal Pages workflow). You can also trigger the same job from the Actions tab, including a **force enrich**
+option that re-scrapes gene pages even if the protein table is unchanged.
 
 Locally, after reviewing an upstream change yourself:
 
 ```sh
-npm run data:refresh   # replace snapshot + rebuild genes.json
-npm run data:enrich    # re-scrape annotations, pN/pS, sequences
+npm run data:refresh   # replace snapshot + rebuild genes.json (keeps UniProt accessions from the mapping file)
+npm run data:uniprot   # refresh ORF → UniProt accessions from UniProt + portal fallbacks
+npm run data:enrich    # re-scrape annotations, pN/pS, sequences, UniProt hrefs
 ```
 
 `npm run build:data` remains the offline command for rebuilding the JSON from the current checked-in snapshot.

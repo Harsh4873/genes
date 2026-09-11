@@ -19,22 +19,37 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-/** Highlight matched ranges from a query inside a label, as {text, hit} spans. */
+/** Highlight matched ranges from a query inside a label, as {text, hit} spans.
+ *  Each whitespace-separated token is marked independently. */
 export function highlight(text: string, query: string): { text: string; hit: boolean }[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [{ text, hit: false }];
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [{ text, hit: false }];
   const lower = text.toLowerCase();
+  const ranges: { start: number; end: number }[] = [];
+  for (const token of tokens) {
+    let from = 0;
+    while (from < lower.length) {
+      const idx = lower.indexOf(token, from);
+      if (idx === -1) break;
+      ranges.push({ start: idx, end: idx + token.length });
+      from = idx + token.length;
+    }
+  }
+  if (!ranges.length) return [{ text, hit: false }];
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: { start: number; end: number }[] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range.start <= last.end) last.end = Math.max(last.end, range.end);
+    else merged.push({ ...range });
+  }
   const out: { text: string; hit: boolean }[] = [];
   let i = 0;
-  while (i < text.length) {
-    const idx = lower.indexOf(q, i);
-    if (idx === -1) {
-      out.push({ text: text.slice(i), hit: false });
-      break;
-    }
-    if (idx > i) out.push({ text: text.slice(i, idx), hit: false });
-    out.push({ text: text.slice(idx, idx + q.length), hit: true });
-    i = idx + q.length;
+  for (const range of merged) {
+    if (range.start > i) out.push({ text: text.slice(i, range.start), hit: false });
+    out.push({ text: text.slice(range.start, range.end), hit: true });
+    i = range.end;
   }
+  if (i < text.length) out.push({ text: text.slice(i), hit: false });
   return out;
 }

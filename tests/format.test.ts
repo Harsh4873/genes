@@ -20,6 +20,11 @@ describe('format helpers', () => {
     expect(segs.map((s) => s.text).join('')).toBe('DNA gyrase subunit A');
   });
 
+  it('highlights each whitespace-separated token', () => {
+    const segs = highlight('DNA gyrase subunit A', 'DNA subunit');
+    expect(segs.filter((s) => s.hit).map((s) => s.text)).toEqual(['DNA', 'subunit']);
+  });
+
   it('highlight returns the whole string when query is empty', () => {
     expect(highlight('katG', '')).toEqual([{ text: 'katG', hit: false }]);
   });

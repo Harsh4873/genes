@@ -9,6 +9,7 @@ import {
 } from '../lib/browserState';
 import { href, replaceRoute, useRoute } from '../lib/router';
 import { fmtInt } from '../lib/format';
+import { parseGeneQuery } from '../lib/search';
 import { compareStore, useCompare } from '../lib/compareStore';
 import { CategoryTag } from '../components/common';
 
@@ -20,13 +21,15 @@ export function Browser({ dataset }: { dataset: Dataset }) {
   const state = useMemo(() => parseBrowserState(route.params), [route.raw]);
   const cats = useMemo(() => new Set(state.cats), [state.cats]);
 
+  const parsedQuery = useMemo(() => parseGeneQuery(dataset.genes, state.q), [dataset.genes, state.q]);
+
   const filtered = useMemo(() => {
-    const terms = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const terms = parsedQuery.catalogQuery.toLowerCase().split(/\s+/).filter(Boolean);
     let list = dataset.genes.filter((g) => {
       if (cats.size && !cats.has(g.category)) return false;
       if (state.strand !== 'all' && g.strand !== state.strand) return false;
       if (terms.length) {
-        const hay = `${g.orf} ${g.gene ?? ''} ${g.annotation}`.toLowerCase();
+        const hay = `${g.orf} ${g.gene ?? ''} ${g.annotation} ${g.uniprot ?? ''}`.toLowerCase();
         if (!terms.every((t) => hay.includes(t))) return false;
       }
       return true;
@@ -41,7 +44,7 @@ export function Browser({ dataset }: { dataset: Dataset }) {
     const sortKey = state.sort === 'essentiality' ? 'position' : state.sort;
     list = [...list].sort((a, b) => cmp[sortKey](a, b) * state.dir || a.start - b.start);
     return list;
-  }, [dataset, state.q, state.strand, state.sort, state.dir, cats]);
+  }, [dataset, parsedQuery.catalogQuery, state.strand, state.sort, state.dir, cats]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const page = Math.min(state.page, pages - 1);
@@ -114,6 +117,12 @@ export function Browser({ dataset }: { dataset: Dataset }) {
 
       <div className="result-meta">
         Showing <b className="tabnum">{filtered.length ? page * PAGE + 1 : 0}–{Math.min((page + 1) * PAGE, filtered.length)}</b> of <b className="tabnum">{fmtInt(filtered.length)}</b> genes
+        {parsedQuery.extraTerms ? (
+          <span className="dim" style={{ marginLeft: 8 }}>
+            “{parsedQuery.extraTerms}” is not a catalog field —{' '}
+            <a href={href(`lookup?q=${encodeURIComponent(state.q)}`)}>search papers in GeneLookup</a>
+          </span>
+        ) : null}
       </div>
 
       <div className="table-wrap gene-table-wrap">
@@ -158,7 +167,20 @@ export function Browser({ dataset }: { dataset: Dataset }) {
             })}
           </tbody>
         </table>
-        {!pageItems.length ? <div className="empty-state">No genes match these filters.</div> : null}
+        {!pageItems.length ? (
+          <div className="empty-state">
+            {parsedQuery.extraTerms && !parsedQuery.catalogQuery ? (
+              <>
+                <p>Nothing in the catalog is named “{state.q}”.</p>
+                <a className="btn btn-primary" href={href(`lookup?q=${encodeURIComponent(state.q)}`)} style={{ marginTop: 10 }}>
+                  Search papers in GeneLookup
+                </a>
+              </>
+            ) : (
+              <p>No genes match these filters.</p>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="gene-card-list" aria-label="Gene results">

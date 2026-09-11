@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { annotationRows, formatPnps } from '../src/lib/portalEnrichment';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { annotationRows, formatPnps, loadPortalEnrichment, resetPortalEnrichmentCache } from '../src/lib/portalEnrichment';
 
 describe('portal enrichment helpers', () => {
   it('prefers scraped multi-source annotations over the catalog fallback', () => {
@@ -23,5 +23,27 @@ describe('portal enrichment helpers', () => {
   it('formats pN/pS values compactly', () => {
     expect(formatPnps(0.880982727)).toBe('0.881');
     expect(formatPnps(undefined)).toBe('—');
+  });
+});
+
+describe('portal enrichment loading', () => {
+  afterEach(() => {
+    resetPortalEnrichmentCache();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not cache an empty map after a fetch failure', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ source: 'x', builtAt: '2026-01-01', count: 1, genes: { Rv0001: { up: 'P9WNW3' } } }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadPortalEnrichment()).rejects.toThrow('portal enrichment HTTP 503');
+    const map = await loadPortalEnrichment();
+    expect(map.get('Rv0001')?.uniprot).toBe('P9WNW3');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
