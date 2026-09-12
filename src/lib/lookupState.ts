@@ -1,16 +1,16 @@
 import type { CategoryId } from './types';
 import { CATEGORIES } from './categories';
-import { DEFAULT_PATHWAYS, DEFAULT_WEIGHTS, decodeWeights, encodeWeights, type Weights } from './prioritize';
+import { DEFAULT_PATHWAYS } from './prioritize';
 
-// URL state for GeneLookup, so a gene, a weighting and a set of pathways are
-// all shareable and bookmarkable — the same contract the Selection Lab uses.
+// URL state for GeneLookup, so a gene, extra literature terms and a set of
+// pathways are all shareable and bookmarkable — the same contract the
+// Selection Lab uses. Scoring weights are fixed in code, not the URL.
 
 export interface LookupState {
   q: string;
   gene: string;
   /** Extra literature tokens (rifampin, essential, …), kept after a gene is picked. */
   term: string;
-  weights: Weights;
   pathways: CategoryId[];
   page: number;
 }
@@ -21,7 +21,6 @@ export const DEFAULT_LOOKUP_STATE: LookupState = {
   q: '',
   gene: '',
   term: '',
-  weights: { ...DEFAULT_WEIGHTS },
   pathways: [...DEFAULT_PATHWAYS],
   page: 0,
 };
@@ -54,7 +53,6 @@ export function parseLookupState(params: Record<string, string>): LookupState {
     q: (params.q ?? '').trim(),
     gene: (params.gene ?? '').trim(),
     term: (params.term ?? '').trim(),
-    weights: decodeWeights(params.w),
     pathways: parsePathways(params.path),
     page: Math.max(0, readInt(params.page, 1, 1, 1000) - 1),
   };
@@ -65,8 +63,6 @@ export function lookupStatePath(state: LookupState): string {
   if (state.q) params.set('q', state.q);
   if (state.gene) params.set('gene', state.gene);
   if (state.term) params.set('term', state.term);
-  const weights = encodeWeights(state.weights);
-  if (weights !== encodeWeights(DEFAULT_WEIGHTS)) params.set('w', weights);
   if (!samePathways(state.pathways, DEFAULT_PATHWAYS)) params.set('path', state.pathways.join(','));
   if (state.page > 0) params.set('page', String(state.page + 1));
   const query = params.toString();

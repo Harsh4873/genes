@@ -37,7 +37,7 @@ papers without requiring a catalog hit.
 
 **GenePrioritize** scores every gene on eight signals: selection strength (ω), statistical significance, mutation count and
 cohort difference from the diabetes study; lineage selection, literature volume, pathway interest and annotation confidence
-from public data. Weights are live sliders, ride in the URL so a ranking can be linked, and the table exports as CSV.
+from public data. Scoring uses fixed default weights; the table exports as CSV.
 
 Two rules keep the ranking honest:
 

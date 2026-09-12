@@ -104,6 +104,7 @@ export const SIGNAL_META: SignalMeta[] = [
   },
 ];
 
+/** Fixed scoring weights used by GeneLookup; the UI does not expose sliders for these. */
 export const DEFAULT_WEIGHTS: Weights = {
   selection: 1,
   significance: 1,
@@ -191,7 +192,8 @@ export interface RankInput {
   selection?: Map<string, SelectionGene> | null;
   enrichment?: Map<string, PortalGeneEnrichment> | null;
   literature?: Map<string, number> | null;
-  weights: Weights;
+  /** Defaults to DEFAULT_WEIGHTS; the UI does not expose these. */
+  weights?: Weights;
   pathways?: CategoryId[];
 }
 
@@ -225,7 +227,7 @@ function lineageSignal(enrichment: PortalGeneEnrichment | null | undefined): num
 }
 
 export function rankGenes(input: RankInput): RankedGene[] {
-  const { genes, selection, enrichment, literature, weights } = input;
+  const { genes, selection, enrichment, literature, weights = DEFAULT_WEIGHTS } = input;
   const pathways = new Set<CategoryId>(input.pathways ?? []);
 
   const ranked = genes.map((gene): RankedGene => {
@@ -273,22 +275,6 @@ export function rankGenes(input: RankInput): RankedGene[] {
 
   ranked.sort((a, b) => b.score - a.score || a.gene.orf.localeCompare(b.gene.orf));
   return ranked;
-}
-
-/** Weights survive in the URL, so a ranking can be linked or bookmarked. */
-export function encodeWeights(weights: Weights): string {
-  return SIGNALS.map((id) => String(Math.round((weights[id] ?? 0) * 100) / 100)).join(',');
-}
-
-export function decodeWeights(encoded: string | undefined): Weights {
-  if (!encoded) return { ...DEFAULT_WEIGHTS };
-  const parts = encoded.split(',');
-  const out = { ...DEFAULT_WEIGHTS };
-  SIGNALS.forEach((id, i) => {
-    const value = Number(parts[i]);
-    out[id] = Number.isFinite(value) ? Math.min(3, Math.max(0, value)) : 0;
-  });
-  return out;
 }
 
 export function csvOf(rows: RankedGene[]): string {
