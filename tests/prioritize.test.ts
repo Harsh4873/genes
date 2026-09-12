@@ -8,8 +8,6 @@ import {
   SIGNAL_META,
   annotationConfidence,
   csvOf,
-  decodeWeights,
-  encodeWeights,
   rankGenes,
   type Weights,
 } from '../src/lib/prioritize';
@@ -144,8 +142,14 @@ describe('annotation confidence', () => {
 });
 
 describe('GenePrioritize', () => {
+  it('uses the hardcoded default weights when none are supplied', () => {
+    const withDefaults = rankGenes({ genes: CATALOG, selection: SELECTION, weights: DEFAULT_WEIGHTS });
+    const omitted = rankGenes({ genes: CATALOG, selection: SELECTION });
+    expect(omitted.map((r) => [r.gene.orf, r.score])).toEqual(withDefaults.map((r) => [r.gene.orf, r.score]));
+  });
+
   it('puts a strongly selected, well-observed gene above a flat one', () => {
-    const ranked = rankGenes({ genes: CATALOG, selection: SELECTION, weights: DEFAULT_WEIGHTS });
+    const ranked = rankGenes({ genes: CATALOG, selection: SELECTION });
     const order = ranked.map((r) => r.gene.orf);
     expect(order.indexOf('Rv0290')).toBeLessThan(order.indexOf('Rv3910'));
     expect(ranked.every((r) => r.score >= 0 && r.score <= 100)).toBe(true);
@@ -234,7 +238,6 @@ describe('GeneLookup URL state', () => {
       ...DEFAULT_LOOKUP_STATE,
       gene: 'Rv0290',
       term: 'rifampin',
-      weights: { ...DEFAULT_WEIGHTS, selection: 2, literature: 0 },
       pathways: ['regulatory' as CategoryId],
       page: 3,
     };
@@ -248,16 +251,15 @@ describe('GeneLookup URL state', () => {
     expect(parseLookupState({}).pathways).toEqual(DEFAULT_LOOKUP_STATE.pathways);
   });
 
-  it('ignores junk in the weight and pathway parameters', () => {
-    expect(parseLookupState({ w: '-4,x' }).weights.selection).toBe(0);
-    expect(decodeWeights('9,9,9,9,9,9,9,9').selection).toBe(3);
+  it('ignores leftover weight parameters and junk pathway ids', () => {
+    expect(parseLookupState({ w: '-4,x' })).toEqual(DEFAULT_LOOKUP_STATE);
     expect(parseLookupState({ path: 'not-a-class,regulatory' }).pathways).toEqual(['regulatory']);
   });
 
-  it('round-trips the weights themselves', () => {
-    const weights: Weights = { ...DEFAULT_WEIGHTS, selection: 2, literature: 0 };
-    expect(decodeWeights(encodeWeights(weights))).toEqual(weights);
-    expect(decodeWeights(undefined)).toEqual(DEFAULT_WEIGHTS);
+  it('does not put scoring weights in the URL', () => {
+    const path = lookupStatePath({ ...DEFAULT_LOOKUP_STATE, gene: 'Rv0290' });
+    expect(path).toBe('lookup?gene=Rv0290');
+    expect(path).not.toContain('w=');
   });
 });
 

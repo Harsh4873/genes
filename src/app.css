@@ -1059,16 +1059,6 @@ button.search-row {
 .signal-unlock-row .lock-input { flex: 1 1 200px; margin: 0; }
 
 .prioritize { margin-top: 20px; }
-.weights {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-  gap: 9px 26px;
-  margin: 14px 0 4px;
-}
-.weight { display: grid; grid-template-columns: 1fr 110px 46px; gap: 10px; align-items: center; font-size: 13px; color: var(--text-dim); }
-.weight span:first-child { display: flex; align-items: center; }
-.weight input[type='range'] { width: 100%; accent-color: var(--accent); }
-.weight .tabnum { text-align: right; color: var(--text); font-weight: 600; }
 
 .gene-rank-table td { font-size: 13.5px; }
 .rank-row { cursor: pointer; }

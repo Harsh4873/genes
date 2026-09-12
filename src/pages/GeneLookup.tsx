@@ -3,10 +3,10 @@ import {
   BookOpen,
   Download,
   ExternalLink,
+  ListOrdered,
   Lock,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Unlock,
   X,
 } from 'lucide-react';
@@ -20,12 +20,10 @@ import { loadPortalEnrichment, type PortalGeneEnrichment } from '../lib/portalEn
 import { geneLiterature, literatureCounts, termLiterature, type GeneLiterature, type LiteratureSort } from '../lib/literature';
 import {
   SIGNAL_META,
-  SIGNALS,
   csvOf,
   rankGenes,
   type RankedGene,
   type SignalId,
-  type Weights,
 } from '../lib/prioritize';
 import { lookupStatePath, parseLookupState, type LookupState } from '../lib/lookupState';
 import { EXTERNAL_LINKS } from '../lib/external';
@@ -86,10 +84,9 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
         selection: selection?.byOrf ?? null,
         enrichment,
         literature,
-        weights: state.weights,
         pathways: state.pathways,
       }),
-    [dataset.genes, selection, enrichment, literature, state.weights, state.pathways],
+    [dataset.genes, selection, enrichment, literature, state.pathways],
   );
 
   return (
@@ -174,8 +171,6 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
       <Prioritize
         ranked={ranked}
         state={state}
-        selection={selection}
-        onWeights={(weights) => set({ weights, page: 0 })}
         onPathways={(pathways) => set({ pathways, page: 0 })}
         onPage={(page) => set({ page })}
         onPick={(orf) => set({ gene: orf, term: extraTerms })}
@@ -442,9 +437,7 @@ function GenePanel({
 function Prioritize({
   ranked,
   state,
-  selection,
   literature,
-  onWeights,
   onPathways,
   onPage,
   onPick,
@@ -452,9 +445,7 @@ function Prioritize({
 }: {
   ranked: RankedGene[];
   state: LookupState;
-  selection: SelectionDataset | null;
   literature: Map<string, number>;
-  onWeights: (weights: Weights) => void;
   onPathways: (pathways: CategoryId[]) => void;
   onPage: (page: number) => void;
   onPick: (orf: string) => void;
@@ -510,33 +501,13 @@ function Prioritize({
           </button>
         }
       >
-        <SlidersHorizontal size={15} aria-hidden /> GenePrioritize
+        <ListOrdered size={15} aria-hidden /> GenePrioritize
       </SectionTitle>
       <p className="dim" style={{ marginTop: 0, fontSize: 13.5, maxWidth: '74ch' }}>
-        Every signal is scaled to 0–1 and weighted by you; the score is the weighted mean over the signals that have
-        data for that gene, so a gene is never punished for a measurement nobody made. Only measured quantities are
-        used — the representative panels elsewhere in MtbScope are deliberately excluded.
+        Every signal is scaled to 0–1 and combined with fixed default weights; the score is the weighted mean over the
+        signals that have data for that gene, so a gene is never punished for a measurement nobody made. Only measured
+        quantities are used — the representative panels elsewhere in MtbScope are deliberately excluded.
       </p>
-
-      <div className="weights">
-        {SIGNAL_META.map((meta) => (
-          <label key={meta.id} className="weight" title={meta.help}>
-            <span>
-              {meta.label}
-              {meta.locked && !selection ? <Lock size={11} aria-label="locked" style={{ marginLeft: 5 }} /> : null}
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={2}
-              step={0.25}
-              value={state.weights[meta.id]}
-              onChange={(e) => onWeights({ ...state.weights, [meta.id]: Number(e.target.value) })}
-            />
-            <span className="tabnum">{state.weights[meta.id].toFixed(2)}</span>
-          </label>
-        ))}
-      </div>
 
       <div className="chip-row">
         <span className="dim" style={{ fontSize: 12.5 }}>Pathways of interest:</span>
