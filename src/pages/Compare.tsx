@@ -5,6 +5,7 @@ import { derive } from '../lib/derive';
 import { href, replaceRoute, useRoute } from '../lib/router';
 import { fmtCoord, fmtInt } from '../lib/format';
 import { compareStore, useCompare } from '../lib/compareStore';
+import { positiveSelectionSummary } from '../lib/positiveSelection';
 import { annotationRows, formatPnps, loadPortalEnrichment, type PortalGeneEnrichment } from '../lib/portalEnrichment';
 import { GeneSearch } from '../components/GeneSearch';
 import { CategoryTag, SourceBadge } from '../components/common';
@@ -111,9 +112,9 @@ export function Compare({ dataset }: { dataset: Dataset }) {
   }
 
   const cols = `150px repeat(${genes.length}, minmax(260px, 1fr))`;
-  const Row = ({ label, render, tall }: { label: string; render: (g: Gene, e: PortalGeneEnrichment | undefined) => ReactNode; tall?: boolean }) => (
+  const Row = ({ label, render, tall, source }: { label: string; render: (g: Gene, e: PortalGeneEnrichment | undefined) => ReactNode; tall?: boolean; source?: string }) => (
     <>
-      <div className="cmp-rowlabel"><span className="cmp-label-stack"><span>{label}</span><SourceBadge kind="reference" compact /></span></div>
+      <div className="cmp-rowlabel"><span className="cmp-label-stack"><span>{label}</span>{source ? <span className="source-badge">{source}</span> : <SourceBadge kind="reference" compact />}</span></div>
       {genes.map((g) => (
         <div key={g.orf} className="cmp-cell" style={tall ? { minHeight: 46 } : undefined}>{render(g, enrichment.get(g.orf))}</div>
       ))}
@@ -168,13 +169,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
               {formatPnps(e?.pnps?.L1)} · {formatPnps(e?.pnps?.L2)} · {formatPnps(e?.pnps?.L3)} · {formatPnps(e?.pnps?.L4)}
             </span>
           )} />
-          <Row label="Positive selection" render={(g, e) => {
-            const d = derive(g);
-            const under = e?.underSelection ?? (e?.omegaLower !== undefined ? e.omegaLower > 1 : d.positiveSelection.underSelection);
-            const peak = e?.omegaPeak ?? d.positiveSelection.peakOmega;
-            const lower = e?.omegaLower ?? d.positiveSelection.peakLowerCi;
-            return <span><b>{under ? 'YES' : 'NO'}</b> · peak {peak} ({lower})</span>;
-          }} />
+          <Row label="Positive selection" source="Portal analysis" render={(_, e) => <span>{positiveSelectionSummary(e)}</span>} />
 
           <div className="cmp-rowlabel" style={{ background: 'var(--panel-3)', textTransform: 'none', letterSpacing: 0, fontWeight: 700, color: 'var(--text)' }}>
             <span className="cmp-label-stack"><span>TMHMM</span><SourceBadge kind="reference" compact /></span>
