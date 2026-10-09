@@ -33,7 +33,8 @@ nothing the search widens to full text rather than reporting an empty literature
 
 A query can mix a catalog gene with an extra term (`Rv0001 rifampin`, `rpoB essential`). Tokens that match the catalog still
 find the gene; tokens that match nothing are passed through to the paper query. A term with no gene at all (`essential`) searches
-papers without requiring a catalog hit.
+papers without requiring a catalog hit. With a gene plus a term, the combined papers lead and the gene-only and term-only counts
+sit one click away, so a zero combined result still shows what each half matches.
 
 **GenePrioritize** scores every gene on eight signals: selection strength (ω), statistical significance, mutation count and
 cohort difference from the diabetes study; lineage selection, literature volume, pathway interest and annotation confidence
@@ -123,7 +124,7 @@ it is not; the statistics themselves are covered either way, and `tests/lockbox.
   biophysics — were removed from the UI and are shown on no page. What is left of the deterministic generator
   (`src/lib/derive.ts`) only backs the labelled local TMHMM/omega sketches drawn when a published portal image fails to
   load, and the positive-selection summary for a gene the enrichment snapshot has no value for. It is **representative
-  demonstration data**, not experimental measurement, and nothing scored or ranked reads from it; see the About page.
+  demonstration data**, not experimental measurement, and nothing scored or ranked reads from it.
 - The **selection dataset** (`public/data/selection.enc`) is the exception: real, unpublished analysis output, so it ships
   encrypted (see "Access control"). It is built from two snapshots kept outside the repository — `selection-db-ndb.tsv`
   (per-gene model results) and `selection-cohort.tsv` (cohort composition, aggregated; the per-isolate sheet is not used) —

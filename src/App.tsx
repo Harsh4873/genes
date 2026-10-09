@@ -10,8 +10,6 @@ import { GeneDetail } from './pages/GeneDetail';
 import { GeneLookup } from './pages/GeneLookup';
 import { SelectionLab } from './pages/SelectionLab';
 import { Compare } from './pages/Compare';
-import { Datasets } from './pages/Datasets';
-import { About } from './pages/About';
 
 export default function App() {
   const route = useRoute();
@@ -97,12 +95,6 @@ export default function App() {
         break;
       case 'compare':
         page = <Compare dataset={dataset} />;
-        break;
-      case 'datasets':
-        page = <Datasets dataset={dataset} />;
-        break;
-      case 'about':
-        page = <About />;
         break;
       case 'not-found':
         page = (

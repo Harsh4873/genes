@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowRight, Columns3, FlaskConical, Table2, Database, Microscope, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen, Columns3, FlaskConical, Table2 } from 'lucide-react';
 import type { Dataset } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
 import { href, navigate } from '../lib/router';
@@ -29,7 +29,6 @@ export function Home({ dataset }: { dataset: Dataset }) {
   );
 
   const featured = FEATURED.map((o) => dataset.byOrf.get(o)).filter(Boolean);
-  const checksum = dataset.metadata?.snapshot.checksum.value;
 
   return (
     <div className="container">
@@ -122,18 +121,6 @@ export function Home({ dataset }: { dataset: Dataset }) {
             <a className="link-card" href={href('browse')}>
               <h3><Table2 size={18} style={{ color: 'var(--accent)' }} /> Gene browser</h3>
               <p>Search and filter the H37Rv catalog by class, strand and length.</p>
-            </a>
-            <a className="link-card" href={href('datasets')}>
-              <h3><Database size={17} style={{ color: 'var(--accent)' }} /> Datasets & provenance</h3>
-              <p>
-                Catalog snapshot
-                {checksum ? <> · sha256 <span className="mono" style={{ fontSize: 12 }}>{checksum.slice(0, 12)}…</span></> : null}
-                {' '}and portal plot sources.
-              </p>
-            </a>
-            <a className="link-card" href={href('about')}>
-              <h3><Microscope size={17} style={{ color: 'var(--accent)' }} /> About</h3>
-              <p>What this mirror keeps from the TB Genome Portal.</p>
             </a>
           </div>
         </div>

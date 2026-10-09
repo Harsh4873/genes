@@ -28,7 +28,7 @@ import {
 import { lookupStatePath, parseLookupState, type LookupState } from '../lib/lookupState';
 import { EXTERNAL_LINKS } from '../lib/external';
 import { CategoryTag, SectionTitle, SourceBadge } from '../components/common';
-import { LiteratureSortToggles, PaperList } from '../components/Papers';
+import { LiteratureSortToggles, PaperList, paperSetTabs, type PaperSetId } from '../components/Papers';
 
 /** How many genes get a literature fetch when you ask for one. */
 const SHORTLIST = 40;
@@ -212,8 +212,7 @@ function SignalUnlock({ onUnlocked }: { onUnlocked: (data: SelectionDataset) => 
         <span>
           <b>Unlock the selection dataset</b>
           <span>
-            ω, DPD, allele counts and the branch-model likelihoods come from an unpublished study, so they ship
-            encrypted. Everything else on this page works without the passphrase.
+            Selection signals need the Selection Lab passphrase. Everything else on this page works without it.
           </span>
         </span>
       </div>
@@ -287,6 +286,12 @@ function TermPanel({ term }: { term: string }) {
   );
 }
 
+interface PaperTrio {
+  combined: GeneLiterature;
+  gene: GeneLiterature;
+  terms: GeneLiterature;
+}
+
 function GenePanel({
   gene,
   extraTerms,
@@ -303,29 +308,45 @@ function GenePanel({
   onUnlocked: (data: SelectionDataset) => void;
 }) {
   const [papers, setPapers] = useState<GeneLiterature | null>(null);
+  const [trio, setTrio] = useState<PaperTrio | null>(null);
+  const [view, setView] = useState<PaperSetId>('combined');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<LiteratureSort>(extraTerms ? 'relevance' : 'cited');
   const row = selection?.byOrf.get(gene.orf) ?? null;
+  const activeCount = extraTerms && trio ? trio[view].count : (papers?.count ?? 0);
 
   useEffect(() => {
     setSort(extraTerms ? 'relevance' : 'cited');
+    setView('combined');
   }, [gene.orf, extraTerms]);
 
   useEffect(() => {
     const controller = new AbortController();
     setPapers(null);
+    setTrio(null);
     setError(null);
     setBusy(true);
-    geneLiterature(gene, { limit: 25, extraTerms, sort, signal: controller.signal })
-      .then(setPapers)
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setBusy(false);
-      });
+    const failed = (e: unknown) => {
+      if (controller.signal.aborted) return;
+      setError(e instanceof Error ? e.message : String(e));
+    };
+    const done = () => {
+      if (!controller.signal.aborted) setBusy(false);
+    };
+    if (!extraTerms) {
+      geneLiterature(gene, { limit: 25, sort, signal: controller.signal }).then(setPapers, failed).finally(done);
+    } else {
+      void Promise.all([
+        geneLiterature(gene, { limit: 25, extraTerms, sort, signal: controller.signal }),
+        geneLiterature(gene, { limit: 25, sort, signal: controller.signal }),
+        termLiterature(extraTerms, { limit: 25, sort, signal: controller.signal }),
+      ])
+        .then(([combined, geneOnly, termsOnly]) => {
+          if (!controller.signal.aborted) setTrio({ combined, gene: geneOnly, terms: termsOnly });
+        }, failed)
+        .finally(done);
+    }
     return () => controller.abort();
   }, [gene, extraTerms, sort]);
 
@@ -416,18 +437,60 @@ function GenePanel({
 
         <div>
           <SectionTitle
-            aside={papers && papers.count > 0 ? <span className="pane-count">{papers.count.toLocaleString()}</span> : null}
+            aside={activeCount > 0 ? <span className="pane-count">{activeCount.toLocaleString()}</span> : null}
           >
             Literature
           </SectionTitle>
           <LiteratureSortToggles value={sort} onChange={setSort} />
-          <PaperList
-            papers={papers}
-            busy={busy}
-            error={error}
-            extraTerms={extraTerms}
-            gene={gene}
-          />
+          {extraTerms && trio ? (
+            <>
+              <div className="chip-row" role="group" aria-label="Paper sets">
+                {paperSetTabs(gene.gene ?? gene.orf, extraTerms, {
+                  combined: trio.combined.count,
+                  gene: trio.gene.count,
+                  terms: trio.terms.count,
+                }).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`chip${view === tab.id ? ' on' : ''}`}
+                    aria-pressed={view === tab.id}
+                    onClick={() => setView(tab.id)}
+                  >
+                    {tab.label} <span className="tabnum">{tab.count.toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+              <PaperList
+                papers={trio[view]}
+                busy={busy}
+                error={error}
+                extraTerms={view === 'gene' ? undefined : extraTerms}
+                gene={view === 'terms' ? null : gene}
+                empty={
+                  view === 'combined'
+                    ? `No papers pair ${gene.gene ?? gene.orf} with “${extraTerms}”.`
+                    : view === 'terms'
+                      ? `No papers pairing “${extraTerms}” with tuberculosis / mycobacterium.`
+                      : undefined
+                }
+                fullTextNote={
+                  view === 'terms'
+                    ? `Nothing names “${extraTerms}” in a title or abstract, so these are full-text matches.`
+                    : undefined
+                }
+                hideFilterNote={view === 'terms'}
+              />
+            </>
+          ) : (
+            <PaperList
+              papers={papers}
+              busy={busy}
+              error={error}
+              extraTerms={extraTerms}
+              gene={gene}
+            />
+          )}
         </div>
       </div>
     </section>
@@ -505,8 +568,7 @@ function Prioritize({
       </SectionTitle>
       <p className="dim" style={{ marginTop: 0, fontSize: 13.5, maxWidth: '74ch' }}>
         Every signal is scaled to 0–1 and combined with fixed default weights; the score is the weighted mean over the
-        signals that have data for that gene, so a gene is never punished for a measurement nobody made. Only measured
-        quantities are used — the representative panels elsewhere in MtbScope are deliberately excluded.
+        signals that have data for that gene, so a gene is never punished for a measurement nobody made.
       </p>
 
       <div className="chip-row">

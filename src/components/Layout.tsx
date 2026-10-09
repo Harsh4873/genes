@@ -11,8 +11,6 @@ const NAV = [
   { path: 'lookup', label: 'GeneLookup' },
   { path: 'selection', label: 'Selection Lab' },
   { path: 'compare', label: 'Compare' },
-  { path: 'datasets', label: 'Datasets' },
-  { path: 'about', label: 'About' },
 ];
 
 export function Layout({ genes, children }: { genes: Gene[]; children: React.ReactNode }) {
@@ -119,8 +117,7 @@ export function Layout({ genes, children }: { genes: Gene[]; children: React.Rea
         <div>
           MtbScope · a faster, comparison-first reimagining of the{' '}
           <a href="https://orca2.tamu.edu/U19/" target="_blank" rel="noopener noreferrer">TB Genome Portal</a>.{' '}
-          Gene catalog from the H37Rv reference annotation. Analytical panels are representative demonstration data —{' '}
-          <a href={href('about')}>details</a>.
+          Gene catalog from the H37Rv reference annotation.
         </div>
       </footer>
     </div>

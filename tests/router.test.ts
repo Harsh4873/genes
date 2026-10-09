@@ -35,6 +35,11 @@ describe('hash router', () => {
     expect(parseHash('#/about/extra')).toMatchObject({ path: 'not-found', notFound: true });
   });
 
+  it('treats the removed about and datasets routes as not-found', () => {
+    expect(parseHash('#/about')).toMatchObject({ path: 'not-found', requestedPath: 'about', notFound: true });
+    expect(parseHash('#/datasets')).toMatchObject({ path: 'not-found', requestedPath: 'datasets', notFound: true });
+  });
+
   it('creates subpath-safe hash hrefs', () => {
     expect(href('browse?cat=information')).toBe('#/browse?cat=information');
     expect(href('/about')).toBe('#/about');

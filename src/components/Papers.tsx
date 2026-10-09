@@ -74,6 +74,31 @@ export function ElsewhereChips({ gene, extraTerms }: { gene: Gene | null; extraT
   );
 }
 
+export type PaperSetId = 'combined' | 'gene' | 'terms';
+
+export interface PaperSetTab {
+  id: PaperSetId;
+  label: string;
+  count: number;
+}
+
+/**
+ * Tabs for a gene-plus-terms literature view: papers naming both first, with
+ * the gene-only and term-only counts beside them so a zero combined result
+ * still shows what each half matches on its own.
+ */
+export function paperSetTabs(
+  geneLabel: string,
+  termsLabel: string,
+  counts: Record<PaperSetId, number>,
+): PaperSetTab[] {
+  return [
+    { id: 'combined', label: `${geneLabel} + ${termsLabel}`, count: counts.combined },
+    { id: 'gene', label: geneLabel, count: counts.gene },
+    { id: 'terms', label: `“${termsLabel}”`, count: counts.terms },
+  ];
+}
+
 export function PaperList({
   papers,
   busy,
@@ -81,6 +106,8 @@ export function PaperList({
   extraTerms,
   gene,
   empty,
+  fullTextNote,
+  hideFilterNote,
 }: {
   papers: GeneLiterature | null;
   busy: boolean;
@@ -88,6 +115,10 @@ export function PaperList({
   extraTerms?: string;
   gene: Gene | null;
   empty?: string;
+  /** Overrides the default full-text fallback note (for term-only lists). */
+  fullTextNote?: string;
+  /** Keeps extraTerms for the outbound chips without the "filtered to" note. */
+  hideFilterNote?: boolean;
 }) {
   return (
     <>
@@ -102,10 +133,10 @@ export function PaperList({
         <>
           {papers.scope === 'full-text' ? (
             <p className="faint" style={{ fontSize: 12.5, marginTop: 0 }}>
-              Nothing names this gene in a title or abstract, so these are full-text matches.
+              {fullTextNote ?? 'Nothing names this gene in a title or abstract, so these are full-text matches.'}
             </p>
           ) : null}
-          {extraTerms ? (
+          {extraTerms && !hideFilterNote ? (
             <p className="faint" style={{ fontSize: 12.5, marginTop: 0 }}>
               Filtered to papers that also mention “{extraTerms}”.
             </p>
