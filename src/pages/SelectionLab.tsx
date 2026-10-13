@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -52,6 +52,122 @@ import { Provenance, SectionTitle, SourceBadge } from '../components/common';
 import { CohortBar, OmegaIntervals, SelectionScatter, buildPlot } from '../components/SelectionCharts';
 
 const PAGE = 40;
+
+function ThresholdSlider({
+  label,
+  ariaLabel,
+  min,
+  max,
+  step,
+  value,
+  digits,
+  onCommit,
+}: {
+  label: string;
+  ariaLabel: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  digits: number;
+  onCommit: (next: number) => void;
+}) {
+  const [draft, setDraft] = useState<number | null>(null);
+  const draftRef = useRef<number | null>(null);
+  const valueRef = useRef(value);
+  const onCommitRef = useRef(onCommit);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const endDragRef = useRef<(() => void) | null>(null);
+  valueRef.current = value;
+  onCommitRef.current = onCommit;
+
+  const quantize = (next: number) => Number(next.toFixed(digits));
+
+  // Drop the local thumb once the route value matches it, so the control does
+  // not snap back to the previous cutoff for a frame after release.
+  if (draft !== null && quantize(draft) === quantize(value)) {
+    draftRef.current = null;
+    setDraft(null);
+  }
+
+  const shown = draft ?? value;
+
+  const commit = () => {
+    const next = draftRef.current;
+    if (next === null) return;
+    const quantized = quantize(next);
+    if (quantized === quantize(valueRef.current)) {
+      draftRef.current = null;
+      setDraft(null);
+      return;
+    }
+    draftRef.current = quantized;
+    setDraft(quantized);
+    onCommitRef.current(quantized);
+  };
+
+  const finishDrag = () => {
+    const end = endDragRef.current;
+    if (!end) return;
+    endDragRef.current = null;
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    commit();
+  };
+
+  useEffect(() => {
+    const node = inputRef.current;
+    if (!node) return;
+    // `change` fires when a drag ends, including when the pointer is released
+    // outside the control. `input` (React onChange) only tracks the thumb.
+    const onNativeChange = () => commit();
+    node.addEventListener('change', onNativeChange);
+    return () => {
+      node.removeEventListener('change', onNativeChange);
+      const end = endDragRef.current;
+      if (!end) return;
+      endDragRef.current = null;
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+  }, []);
+
+  return (
+    <label className="threshold">
+      <span>{label}</span>
+      <input
+        ref={inputRef}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={shown}
+        aria-label={ariaLabel}
+        aria-valuetext={digits > 0 ? shown.toFixed(digits) : String(shown)}
+        onPointerDown={() => {
+          if (endDragRef.current) return;
+          const end = () => finishDrag();
+          endDragRef.current = end;
+          window.addEventListener('pointerup', end);
+          window.addEventListener('pointercancel', end);
+        }}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (!Number.isFinite(next)) return;
+          const quantized = quantize(next);
+          draftRef.current = quantized;
+          setDraft(quantized);
+        }}
+        onKeyUp={commit}
+        onBlur={() => {
+          if (endDragRef.current) return;
+          commit();
+        }}
+      />
+      <b className="tabnum">{digits > 0 ? shown.toFixed(digits) : shown}</b>
+    </label>
+  );
+}
 
 function fmt(value: number | null | undefined, digits = 3): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -483,68 +599,56 @@ export function SelectionLab({ dataset }: { dataset: Dataset }) {
 
         <div className="threshold-grid">
           {state.dir !== 'purifying' ? (
-            <label className="threshold">
-              <span>DPD above</span>
-              <input
-                type="range"
-                min={0.5}
-                max={0.999}
-                step={0.001}
-                value={state.dpdHigh}
-                onChange={(e) => update({ dpdHigh: Number(e.target.value) })}
-                aria-label="DPD lower cutoff"
-              />
-              <b className="tabnum">{state.dpdHigh.toFixed(3)}</b>
-            </label>
+            <ThresholdSlider
+              key="dpd-high"
+              label="DPD above"
+              ariaLabel="DPD lower cutoff"
+              min={0.5}
+              max={0.999}
+              step={0.001}
+              value={state.dpdHigh}
+              digits={3}
+              onCommit={(dpdHigh) => update({ dpdHigh })}
+            />
           ) : (
-            <label className="threshold">
-              <span>DPD below</span>
-              <input
-                type="range"
-                min={0.001}
-                max={0.5}
-                step={0.001}
-                value={state.dpdLow}
-                onChange={(e) => update({ dpdLow: Number(e.target.value) })}
-                aria-label="DPD upper cutoff"
-              />
-              <b className="tabnum">{state.dpdLow.toFixed(3)}</b>
-            </label>
+            <ThresholdSlider
+              key="dpd-low"
+              label="DPD below"
+              ariaLabel="DPD upper cutoff"
+              min={0.001}
+              max={0.5}
+              step={0.001}
+              value={state.dpdLow}
+              digits={3}
+              onCommit={(dpdLow) => update({ dpdLow })}
+            />
           )}
           {state.dir === 'positive' ? (
-            <label className="threshold">
-              <span>ωDB above</span>
-              <input
-                type="range"
-                min={0}
-                max={3}
-                step={0.05}
-                value={state.omegaMin}
-                onChange={(e) => update({ omegaMin: Number(e.target.value) })}
-                aria-label="Minimum posterior mean omega in the diabetes cohort"
-              />
-              <b className="tabnum">{state.omegaMin.toFixed(2)}</b>
-            </label>
-          ) : null}
-          <label className="threshold">
-            <span>Distinct alleles</span>
-            <input
-              type="range"
+            <ThresholdSlider
+              key="omega-min"
+              label="ωDB above"
+              ariaLabel="Minimum posterior mean omega in the diabetes cohort"
               min={0}
-              max={60}
-              step={1}
-              value={state.dir === 'purifying' ? state.allelesPurifying : state.allelesPositive}
-              onChange={(e) =>
-                update(
-                  state.dir === 'purifying'
-                    ? { allelesPurifying: Number(e.target.value) }
-                    : { allelesPositive: Number(e.target.value) },
-                )
-              }
-              aria-label="Minimum distinct alleles"
+              max={3}
+              step={0.05}
+              value={state.omegaMin}
+              digits={2}
+              onCommit={(omegaMin) => update({ omegaMin })}
             />
-            <b className="tabnum">{state.dir === 'purifying' ? state.allelesPurifying : state.allelesPositive}</b>
-          </label>
+          ) : null}
+          <ThresholdSlider
+            key={state.dir === 'purifying' ? 'alleles-purifying' : 'alleles-positive'}
+            label="Distinct alleles"
+            ariaLabel="Minimum distinct alleles"
+            min={0}
+            max={60}
+            step={1}
+            value={state.dir === 'purifying' ? state.allelesPurifying : state.allelesPositive}
+            digits={0}
+            onCommit={(alleles) =>
+              update(state.dir === 'purifying' ? { allelesPurifying: alleles } : { allelesPositive: alleles })
+            }
+          />
         </div>
 
         <div className="filter-scroll" style={{ marginTop: 4 }}>
@@ -636,7 +740,8 @@ export function SelectionLab({ dataset }: { dataset: Dataset }) {
         </div>
       </div>
 
-      <div className="table-wrap">
+      <p id="selection-scroll-hint" className="scroll-hint selection-scroll-hint">Swipe sideways to see every column.</p>
+      <div className="table-wrap" tabIndex={0} role="region" aria-label="Selection results" aria-describedby="selection-scroll-hint">
         <table className="table selection-table">
           <thead>
             <tr>

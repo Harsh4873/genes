@@ -50,7 +50,7 @@ function samePathways(a: CategoryId[], b: CategoryId[]): boolean {
 
 export function parseLookupState(params: Record<string, string>): LookupState {
   return {
-    q: (params.q ?? '').trim(),
+    q: params.q ?? '',
     gene: (params.gene ?? '').trim(),
     term: (params.term ?? '').trim(),
     pathways: parsePathways(params.path),

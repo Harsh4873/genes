@@ -76,7 +76,13 @@ export function Compare({ dataset }: { dataset: Dataset }) {
 
   const share = () => {
     const url = `${location.origin}${location.pathname}#/${routePathForGenes(compare)}`;
-    navigator.clipboard?.writeText(url).then(() => {
+    const clipboard = navigator.clipboard;
+    if (typeof clipboard?.writeText !== 'function') {
+      setCopied(false);
+      setCopyError(true);
+      return;
+    }
+    clipboard.writeText(url).then(() => {
       setCopied(true);
       setCopyError(false);
       setTimeout(() => setCopied(false), 1600);
@@ -132,7 +138,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
             <GeneSearch genes={dataset.genes} placeholder="Add a gene..." onPick={(g) => setCompared([...compare, g.orf])} />
           </div>
           <button className="btn btn-sm" onClick={share} disabled={!compare.length}>{copied ? <><Check size={15} /> Copied</> : <><Share2 size={15} /> Share</>}</button>
-          {copyError ? <span className="faint" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
+          {copyError ? <span className="faint" role="alert" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
           <button className="btn btn-ghost btn-sm" onClick={() => setCompared([])}><Trash2 size={15} /> Clear</button>
         </div>
       </div>
@@ -142,7 +148,7 @@ export function Compare({ dataset }: { dataset: Dataset }) {
           <div className="cmp-rowlabel" style={{ background: 'var(--panel)', position: 'sticky', top: 56, left: 0, zIndex: 6 }} />
           {genes.map((g) => (
             <div key={g.orf} className="cmp-header" style={{ position: 'sticky', top: 56, zIndex: 5 }}>
-              <button className="icon-btn cmp-remove" style={{ width: 26, height: 26 }} onClick={() => setCompared(compare.filter((orf) => orf !== g.orf))} title="Remove"><X size={14} /></button>
+              <button type="button" className="icon-btn cmp-remove" style={{ width: 26, height: 26 }} onClick={() => setCompared(compare.filter((orf) => orf !== g.orf))} title="Remove" aria-label={`Remove ${g.orf}`}><X size={14} /></button>
               <a className="cmp-orf" href={href(`gene/${g.orf}`)} style={{ display: 'block' }}>{g.orf}</a>
               {g.gene ? <a className="cmp-sym" href={href(`gene/${g.orf}`)}>{g.gene}</a> : <span className="faint">unnamed</span>}
               <div style={{ marginTop: 6 }}><CategoryTag id={g.category} /></div>

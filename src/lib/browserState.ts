@@ -54,7 +54,7 @@ export function parseBrowserState(params: Record<string, string>): BrowserState 
   const dir = params.dir === 'desc' ? -1 : 1;
 
   return {
-    q: (params.q ?? '').trim(),
+    q: params.q ?? '',
     cats,
     strand,
     ess,

@@ -228,6 +228,10 @@ describe('GenePrioritize', () => {
 });
 
 describe('GeneLookup URL state', () => {
+  it('keeps spaces typed into the search query', () => {
+    expect(parseLookupState({ q: 'katG essential ' }).q).toBe('katG essential ');
+  });
+
   it('defaults to a bare route', () => {
     expect(lookupStatePath(parseLookupState({}))).toBe('lookup');
     expect(parseLookupState({})).toEqual(DEFAULT_LOOKUP_STATE);

@@ -12,7 +12,7 @@ describe('browser state query helpers', () => {
       dir: 'desc',
       page: '3',
     })).toEqual({
-      q: 'katG',
+      q: ' katG ',
       cats: ['cell-wall', 'metabolism'],
       strand: '+',
       ess: ['essential', 'growth-defect'],
@@ -36,5 +36,9 @@ describe('browser state query helpers', () => {
 
   it('keeps the default browse route clean', () => {
     expect(browserStatePath(parseBrowserState({}))).toBe('browse');
+  });
+
+  it('keeps spaces typed into the filter query', () => {
+    expect(parseBrowserState({ q: 'hypothetical protein ' }).q).toBe('hypothetical protein ');
   });
 });

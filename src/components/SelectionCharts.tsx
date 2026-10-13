@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type MouseEvent } from 'react';
 import { Download } from 'lucide-react';
 import type { SelectionGene } from '../lib/selection';
 import { pnpsPair, type SelectionCall } from '../lib/selectionStats';
@@ -212,6 +212,15 @@ export function SelectionScatter({
       for (const child of Array.from(node.children)) resolve(child);
     };
     resolve(clone);
+    clone.querySelectorAll('[data-hit]').forEach((node) => node.remove());
+    clone.querySelectorAll('.selection-point, [data-orf]').forEach((node) => {
+      node.removeAttribute('role');
+      node.removeAttribute('tabindex');
+      node.removeAttribute('aria-label');
+      node.removeAttribute('aria-current');
+      node.removeAttribute('focusable');
+      node.removeAttribute('data-orf');
+    });
     const blob = new Blob([clone.outerHTML], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -219,6 +228,66 @@ export function SelectionScatter({
     link.download = 'mtbscope-selection.svg';
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const keyboardOrfs = useMemo(() => {
+    const called = ordered.filter((point) => point.call !== 'none');
+    const preferred = [
+      ...called.filter((point) => labelled.has(point.gene.orf)),
+      ...called.filter((point) => !labelled.has(point.gene.orf)),
+    ];
+    const ids = (called.length <= 40 ? called : preferred.slice(0, 40)).map((point) => point.gene.orf);
+    if (focus) ids.push(focus);
+    return new Set(ids);
+  }, [ordered, labelled, focus]);
+
+  const pointName = (point: PlotPoint) =>
+    `${point.gene.name}, ${spec.xAxis.label.split(' ')[0]} ${point.x.toFixed(3)}, ${spec.yAxis.label.split(' ')[0]} ${point.y.toFixed(3)}`;
+
+  const pickNearest = (clientX: number, clientY: number): string | undefined => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = ((clientX - rect.left) / rect.width) * W;
+    const y = ((clientY - rect.top) / rect.height) * H;
+    const margin = (16 / rect.width) * W;
+    const inPlot =
+      x >= PAD.left - margin &&
+      x <= PAD.left + innerW + margin &&
+      y >= PAD.top - margin &&
+      y <= PAD.top + innerH + margin;
+    if (!inPlot) return;
+    const limit = (32 / rect.width) * W;
+    let best: PlotPoint | null = null;
+    let bestD = limit;
+    for (const point of spec.points) {
+      const distance = Math.hypot(sx(point.x) - x, sy(point.y) - y);
+      if (distance <= bestD) {
+        best = point;
+        bestD = distance;
+      }
+    }
+    return best?.gene.orf;
+  };
+
+  const onPlotClick = (event: MouseEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as Element | null;
+    const owned = target?.closest?.('[data-orf]');
+    const orf = owned?.getAttribute('data-orf') || undefined;
+    // Symbol labels sit offset from their point and can cover a neighbor.
+    // A direct hit on a point still wins; a label defers to the nearer gene.
+    const labelHit = Boolean(orf && owned?.localName === 'text');
+    if (orf && !labelHit) {
+      onPick(orf);
+      return;
+    }
+    // Axis and guide labels are not gene targets.
+    if (target?.localName === 'text' && !labelHit) return;
+    const nearest = pickNearest(event.clientX, event.clientY);
+    if (nearest) onPick(nearest);
+    else if (labelHit && orf) onPick(orf);
   };
 
   return (
@@ -233,8 +302,9 @@ export function SelectionScatter({
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="selection-svg"
-        role="img"
+        role="group"
         aria-label={`${spec.yAxis.label} against ${spec.xAxis.label}, ${spec.points.length} genes`}
+        onClick={onPlotClick}
       >
         <rect x={PAD.left} y={PAD.top} width={innerW} height={innerH} fill="var(--panel-2)" opacity={0.5} />
         {spec.xAxis.ticks.map((t) => (
@@ -289,21 +359,39 @@ export function SelectionScatter({
         {ordered.map((point) => {
           const isFocus = point.gene.orf === focus;
           const r = isFocus ? 6 : point.call === 'none' ? 2 : 4;
+          const keyboard = keyboardOrfs.has(point.gene.orf);
+          const label = pointName(point);
           return (
-            <circle
+            <g
               key={point.gene.orf}
-              cx={sx(point.x)}
-              cy={sy(point.y)}
-              r={r}
-              fill={isFocus ? 'var(--accent)' : CALL_COLOR[point.call]}
-              fillOpacity={point.call === 'none' && !isFocus ? 0.4 : 0.9}
-              stroke={isFocus ? 'var(--text)' : 'none'}
-              strokeWidth={isFocus ? 1.5 : 0}
-              className="selection-dot"
-              onClick={() => onPick(point.gene.orf)}
+              className="selection-point"
+              data-orf={point.gene.orf}
+              role={keyboard ? 'button' : undefined}
+              tabIndex={keyboard ? 0 : undefined}
+              focusable={keyboard ? 'true' : undefined}
+              aria-hidden={keyboard ? undefined : true}
+              aria-label={keyboard ? label : undefined}
+              aria-current={keyboard && isFocus ? 'true' : undefined}
+              onKeyDown={keyboard ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onPick(point.gene.orf);
+                }
+              } : undefined}
             >
-              <title>{`${point.gene.name} — ${spec.xAxis.label.split(' ')[0]} ${point.x.toFixed(3)}, ${spec.yAxis.label.split(' ')[0]} ${point.y.toFixed(3)}`}</title>
-            </circle>
+              <circle
+                cx={sx(point.x)}
+                cy={sy(point.y)}
+                r={r}
+                fill={isFocus ? 'var(--accent)' : CALL_COLOR[point.call]}
+                fillOpacity={point.call === 'none' && !isFocus ? 0.4 : 0.9}
+                stroke={isFocus ? 'var(--text)' : 'none'}
+                strokeWidth={isFocus ? 1.5 : 0}
+                className="selection-dot"
+              >
+                <title>{label}</title>
+              </circle>
+            </g>
           );
         })}
         {placed.map(({ point, x, y }) => (
@@ -316,7 +404,7 @@ export function SelectionScatter({
             stroke="var(--panel)"
             strokeWidth={3}
             paintOrder="stroke"
-            pointerEvents="none"
+            data-orf={point.gene.orf}
           >
             {point.gene.gene}
           </text>

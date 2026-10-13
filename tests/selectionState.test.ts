@@ -61,6 +61,10 @@ describe('selection lab URL state', () => {
     expect(state.dir).toBe(DEFAULT_SELECTION_STATE.dir);
   });
 
+  it('keeps spaces typed into the filter query', () => {
+    expect(parseSelectionState({ q: 'hypothetical protein ' }).q).toBe('hypothetical protein ');
+  });
+
   it('is reachable as a known route, with a gene deep link', () => {
     const route = parseHash('#/selection?gene=Rv0648&dir=positive');
     expect(route.path).toBe('selection');

@@ -14,6 +14,7 @@ import { OmegaPlot, TmhmmPlot } from '../components/Charts';
 import { PortalFigure } from '../components/PortalFigure';
 import { LiteratureSortToggles, PaperList } from '../components/Papers';
 import { derive } from '../lib/derive';
+import { positiveSelectionFields } from '../lib/positiveSelection';
 import {
   portalGenePage,
   portalGenomegaMapPaperUrl,
@@ -64,15 +65,19 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
   const portalHref = EXTERNAL_LINKS.find((l) => l.id === 'tbportal')?.href(gene);
   const keggHref = EXTERNAL_LINKS.find((l) => l.id === 'kegg')?.href(gene);
   const ann = annotationRows(enrichment, gene.annotation);
-  const underSelection = enrichment?.underSelection ?? (enrichment?.omegaLower !== undefined ? enrichment.omegaLower > 1 : d.positiveSelection.underSelection);
-  const peak = enrichment?.omegaPeak ?? d.positiveSelection.peakOmega;
-  const peakLower = enrichment?.omegaLower ?? d.positiveSelection.peakLowerCi;
+  const selectionFields = positiveSelectionFields(enrichment ?? undefined);
   const sequence = enrichment?.sequence;
   const pnps = enrichment?.pnps;
 
   const copyLink = () => {
     const url = `${location.origin}${location.pathname}#/gene/${gene.orf}`;
-    navigator.clipboard?.writeText(url).then(() => {
+    const clipboard = navigator.clipboard;
+    if (typeof clipboard?.writeText !== 'function') {
+      setCopied(false);
+      setCopyError(true);
+      return;
+    }
+    clipboard.writeText(url).then(() => {
       setCopied(true);
       setCopyError(false);
       setTimeout(() => setCopied(false), 1600);
@@ -119,8 +124,8 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
           </button>
           {compare.length ? <a className="btn" href={href('compare')}><Columns3 size={16} /> {compare.length}</a> : null}
           {portalHref ? <a className="btn" href={portalHref} target="_blank" rel="noopener noreferrer">TB Portal <ExternalLink size={14} /></a> : null}
-          <button className="btn btn-ghost" onClick={copyLink} title="Copy link">{copied ? <Check size={16} /> : <Link2 size={16} />}</button>
-          {copyError ? <span className="faint" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
+          <button className="btn btn-ghost" type="button" onClick={copyLink} title="Copy link" aria-label={copied ? 'Link copied' : 'Copy link'}>{copied ? <Check size={16} /> : <Link2 size={16} />}</button>
+          {copyError ? <span className="faint" role="alert" style={{ fontSize: 12 }}>Couldn’t copy — copy from the address bar.</span> : null}
         </div>
       </div>
 
@@ -217,14 +222,33 @@ export function GeneDetail({ dataset, orf }: { dataset: Dataset; orf: string }) 
               <div className="table-wrap" style={{ marginTop: 12 }}>
                 <table className="table portal-summary-table">
                   <tbody>
-                    <tr style={{ cursor: 'default' }}>
-                      <td>Under significant positive selection?</td>
-                      <td><b>{underSelection ? 'YES' : 'NO'}</b></td>
-                    </tr>
-                    <tr style={{ cursor: 'default' }}>
-                      <td>Omega peak height (95% CI lower bound)</td>
-                      <td className="tabnum">{peak} ({peakLower})</td>
-                    </tr>
+                    {!enrichment && enrichmentError ? (
+                      <tr style={{ cursor: 'default' }}>
+                        <td colSpan={2}>
+                          Couldn’t load portal enrichment ({enrichmentError}).{' '}
+                          <button type="button" className="btn btn-sm" onClick={retry}><RefreshCw size={13} /> Retry</button>
+                        </td>
+                      </tr>
+                    ) : !enrichment && loading ? (
+                      <tr style={{ cursor: 'default' }}>
+                        <td colSpan={2}>Loading GenomegaMap summary…</td>
+                      </tr>
+                    ) : (
+                      <>
+                        <tr style={{ cursor: 'default' }}>
+                          <td>Under significant positive selection?</td>
+                          <td><b>{selectionFields.selected === undefined ? 'Not available' : selectionFields.selected ? 'YES' : 'NO'}</b></td>
+                        </tr>
+                        <tr style={{ cursor: 'default' }}>
+                          <td>Omega peak height (95% CI lower bound)</td>
+                          <td className="tabnum">
+                            {selectionFields.selected === undefined && selectionFields.peak === undefined && selectionFields.lower === undefined
+                              ? 'Not available'
+                              : `${selectionFields.peak ?? '—'} (${selectionFields.lower ?? '—'})`}
+                          </td>
+                        </tr>
+                      </>
+                    )}
                     <tr style={{ cursor: 'default' }}>
                       <td>Genetic variants</td>
                       <td>

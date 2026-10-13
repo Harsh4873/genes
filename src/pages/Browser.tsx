@@ -125,25 +125,62 @@ export function Browser({ dataset }: { dataset: Dataset }) {
         ) : null}
       </div>
 
-      <div className="table-wrap gene-table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th className="no-sort" style={{ width: 40 }} title="Add to comparison" />
-              <SortHeader label="ORF" sortKey="orf" />
-              <SortHeader label="Gene" sortKey="gene" />
-              <th className="no-sort">Product</th>
-              <SortHeader label="Class" sortKey="category" />
-              <SortHeader label="Length" sortKey="length" align="right" />
-              <SortHeader label="Position" sortKey="position" />
-            </tr>
-          </thead>
-          <tbody>
+      {pageItems.length ? (
+        <>
+          <div className="table-wrap gene-table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="no-sort" style={{ width: 40 }} title="Add to comparison" />
+                  <SortHeader label="ORF" sortKey="orf" />
+                  <SortHeader label="Gene" sortKey="gene" />
+                  <th className="no-sort">Product</th>
+                  <SortHeader label="Class" sortKey="category" />
+                  <SortHeader label="Length" sortKey="length" align="right" />
+                  <SortHeader label="Position" sortKey="position" />
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map((g) => {
+                  const selected = compareStore.has(g.orf);
+                  return (
+                    <tr key={g.orf}>
+                      <td>
+                        <button
+                          type="button"
+                          className="icon-btn compare-toggle"
+                          data-selected={selected}
+                          onClick={() => compareStore.toggle(g.orf)}
+                          aria-pressed={selected}
+                          aria-label={`${selected ? 'Remove' : 'Add'} ${g.orf} ${selected ? 'from' : 'to'} comparison`}
+                          title={selected ? 'Remove from comparison' : 'Add to comparison'}
+                        >
+                          {selected ? <Check size={14} /> : <Plus size={14} />}
+                        </button>
+                      </td>
+                      <td><a className="row-link mono" href={href(`gene/${g.orf}`)}>{g.orf}</a></td>
+                      <td>{g.gene ? <a className="row-link accent" href={href(`gene/${g.orf}`)}>{g.gene}</a> : <span className="faint">-</span>}</td>
+                      <td className="dim" style={{ maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.annotation}</td>
+                      <td><CategoryTag id={g.category} /></td>
+                      <td className="tabnum dim" style={{ textAlign: 'right' }}>{fmtInt(g.length)} aa</td>
+                      <td className="mono dim" style={{ fontSize: 12.5 }}>{g.strand}{(g.start / 1000).toFixed(0)}k</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="gene-card-list" aria-label="Gene results">
             {pageItems.map((g) => {
               const selected = compareStore.has(g.orf);
               return (
-                <tr key={g.orf}>
-                  <td>
+                <article key={g.orf} className="gene-card">
+                  <div className="gene-card-head">
+                    <div>
+                      <a className="row-link mono" href={href(`gene/${g.orf}`)}>{g.orf}</a>
+                      {g.gene ? <a className="row-link accent gene-card-symbol" href={href(`gene/${g.orf}`)}>{g.gene}</a> : null}
+                    </div>
                     <button
                       type="button"
                       className="icon-btn compare-toggle"
@@ -151,69 +188,35 @@ export function Browser({ dataset }: { dataset: Dataset }) {
                       onClick={() => compareStore.toggle(g.orf)}
                       aria-pressed={selected}
                       aria-label={`${selected ? 'Remove' : 'Add'} ${g.orf} ${selected ? 'from' : 'to'} comparison`}
-                      title={selected ? 'Remove from comparison' : 'Add to comparison'}
                     >
                       {selected ? <Check size={14} /> : <Plus size={14} />}
                     </button>
-                  </td>
-                  <td><a className="row-link mono" href={href(`gene/${g.orf}`)}>{g.orf}</a></td>
-                  <td>{g.gene ? <a className="row-link accent" href={href(`gene/${g.orf}`)}>{g.gene}</a> : <span className="faint">-</span>}</td>
-                  <td className="dim" style={{ maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.annotation}</td>
-                  <td><CategoryTag id={g.category} /></td>
-                  <td className="tabnum dim" style={{ textAlign: 'right' }}>{fmtInt(g.length)} aa</td>
-                  <td className="mono dim" style={{ fontSize: 12.5 }}>{g.strand}{(g.start / 1000).toFixed(0)}k</td>
-                </tr>
+                  </div>
+                  <p>{g.annotation}</p>
+                  <div className="gene-card-meta">
+                    <CategoryTag id={g.category} />
+                    <span className="mono dim">{g.strand}{(g.start / 1000).toFixed(0)}k</span>
+                    <span className="tabnum dim">{fmtInt(g.length)} aa</span>
+                  </div>
+                </article>
               );
             })}
-          </tbody>
-        </table>
-        {!pageItems.length ? (
-          <div className="empty-state">
-            {parsedQuery.extraTerms && !parsedQuery.catalogQuery ? (
-              <>
-                <p>Nothing in the catalog is named “{state.q}”.</p>
-                <a className="btn btn-primary" href={href(`lookup?q=${encodeURIComponent(state.q)}`)} style={{ marginTop: 10 }}>
-                  Search papers in GeneLookup
-                </a>
-              </>
-            ) : (
-              <p>No genes match these filters.</p>
-            )}
           </div>
-        ) : null}
-      </div>
-
-      <div className="gene-card-list" aria-label="Gene results">
-        {pageItems.map((g) => {
-          const selected = compareStore.has(g.orf);
-          return (
-            <article key={g.orf} className="gene-card">
-              <div className="gene-card-head">
-                <div>
-                  <a className="row-link mono" href={href(`gene/${g.orf}`)}>{g.orf}</a>
-                  {g.gene ? <a className="row-link accent gene-card-symbol" href={href(`gene/${g.orf}`)}>{g.gene}</a> : null}
-                </div>
-                <button
-                  type="button"
-                  className="icon-btn compare-toggle"
-                  data-selected={selected}
-                  onClick={() => compareStore.toggle(g.orf)}
-                  aria-pressed={selected}
-                  aria-label={`${selected ? 'Remove' : 'Add'} ${g.orf} ${selected ? 'from' : 'to'} comparison`}
-                >
-                  {selected ? <Check size={14} /> : <Plus size={14} />}
-                </button>
-              </div>
-              <p>{g.annotation}</p>
-              <div className="gene-card-meta">
-                <CategoryTag id={g.category} />
-                <span className="mono dim">{g.strand}{(g.start / 1000).toFixed(0)}k</span>
-                <span className="tabnum dim">{fmtInt(g.length)} aa</span>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+        </>
+      ) : (
+        <div className="empty-state" role="status">
+          {parsedQuery.extraTerms && !parsedQuery.catalogQuery ? (
+            <>
+              <p>Nothing in the catalog is named “{state.q.trim()}”.</p>
+              <a className="btn btn-primary" href={href(`lookup?q=${encodeURIComponent(state.q.trim())}`)} style={{ marginTop: 10 }}>
+                Search papers in GeneLookup
+              </a>
+            </>
+          ) : (
+            <p>No genes match these filters.</p>
+          )}
+        </div>
+      )}
 
       {pages > 1 ? (
         <div className="pagerow">

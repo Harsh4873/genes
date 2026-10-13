@@ -7,10 +7,19 @@ export function usePortalEnrichment(orf: string | undefined): {
   error: string | null;
   retry: () => void;
 } {
+  const request = orf ?? '';
   const [enrichment, setEnrichment] = useState<PortalGeneEnrichment | null>(null);
   const [loading, setLoading] = useState(Boolean(orf));
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
+  const [activeOrf, setActiveOrf] = useState(request);
+
+  if (activeOrf !== request) {
+    setActiveOrf(request);
+    setEnrichment(null);
+    setLoading(Boolean(orf));
+    setError(null);
+  }
 
   const retry = useCallback(() => {
     resetPortalEnrichmentCache();

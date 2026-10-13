@@ -78,7 +78,7 @@ export function SectionTitle({ children, aside }: { children: ReactNode; aside?:
     <div className="section-title">
       <h2>{children}</h2>
       <span className="rule" />
-      {aside}
+      {aside != null ? <div className="section-aside">{aside}</div> : null}
     </div>
   );
 }

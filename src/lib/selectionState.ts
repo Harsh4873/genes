@@ -80,7 +80,7 @@ function readInt(value: string | undefined, fallback: number, min: number, max: 
 export function parseSelectionState(params: Record<string, string>): SelectionState {
   const dpdHigh = readNumber(params.dpd, DEFAULT_SELECTION_STATE.dpdHigh, 0, 1);
   return {
-    q: (params.q ?? '').trim(),
+    q: params.q ?? '',
     dir: DIRECTIONS.has(params.dir) ? (params.dir as SelectionDirection) : DEFAULT_SELECTION_STATE.dir,
     dpdHigh,
     // The purifying cutoff mirrors the positive one unless it is given.

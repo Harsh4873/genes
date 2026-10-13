@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { CategoryId, Dataset, Gene } from '../lib/types';
 import { CATEGORIES, category } from '../lib/categories';
-import { href, navigate, useRoute } from '../lib/router';
+import { href, navigate, replaceRoute, useRoute } from '../lib/router';
 import { searchGenesParsed } from '../lib/search';
 import { loadSelection, unlockedSelection, type SelectionDataset } from '../lib/selection';
 import { LockedError, passphraseStore } from '../lib/lockbox';
@@ -42,8 +42,10 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
   const [enrichment, setEnrichment] = useState<Map<string, PortalGeneEnrichment> | null>(null);
   const [literature, setLiterature] = useState<Map<string, number>>(() => new Map());
 
-  const set = (patch: Partial<LookupState>) => {
-    navigate(lookupStatePath({ ...state, ...patch }));
+  const set = (patch: Partial<LookupState>, history: 'push' | 'replace' = 'push') => {
+    const path = lookupStatePath({ ...state, ...patch });
+    if (history === 'replace') replaceRoute(path);
+    else navigate(path);
   };
 
   useEffect(() => {
@@ -109,13 +111,13 @@ export function GeneLookup({ dataset }: { dataset: Dataset }) {
           <Search size={16} aria-hidden />
           <input
             value={state.q}
-            onChange={(e) => set({ q: e.target.value, page: 0 })}
+            onChange={(e) => set({ q: e.target.value, page: 0 }, 'replace')}
             placeholder="Rv0001 rifampin, katG, PPE, essential…"
             aria-label="Search genes, optionally with an extra paper term"
             spellCheck={false}
           />
           {state.q ? (
-            <button type="button" className="inline-clear" onClick={() => set({ q: '' })} aria-label="Clear search">
+            <button type="button" className="inline-clear" onClick={() => set({ q: '' }, 'replace')} aria-label="Clear search">
               <X size={15} />
             </button>
           ) : null}
@@ -649,13 +651,21 @@ const SHORT: Record<SignalId, string> = Object.fromEntries(
   SIGNAL_META.map((m) => [m.id, m.short]),
 ) as Record<SignalId, string>;
 
+const SIGNAL_LABEL: Record<SignalId, string> = Object.fromEntries(
+  SIGNAL_META.map((m) => [m.id, m.label]),
+) as Record<SignalId, string>;
+
 function RankRow({ row, rank, onPick }: { row: RankedGene; rank: number; onPick: (orf: string) => void }) {
   return (
     <tr onClick={() => onPick(row.gene.orf)} className="rank-row">
       <td className="tabnum dim">{rank}</td>
       <td>
-        <span className="mono">{row.gene.orf}</span>
-        {row.gene.gene ? <b className="accent" style={{ marginLeft: 6 }}>{row.gene.gene}</b> : null}
+        <a className="row-link mono" href={href(`gene/${row.gene.orf}`)} onClick={(e) => e.stopPropagation()}>{row.gene.orf}</a>
+        {row.gene.gene ? (
+          <a className="row-link accent" href={href(`gene/${row.gene.orf}`)} style={{ marginLeft: 6 }} onClick={(e) => e.stopPropagation()}>
+            <b>{row.gene.gene}</b>
+          </a>
+        ) : null}
       </td>
       <td className="dim rank-product" title={row.gene.annotation}>{row.gene.annotation}</td>
       <td>
@@ -664,20 +674,24 @@ function RankRow({ row, rank, onPick }: { row: RankedGene; rank: number; onPick:
       </td>
       <td>
         <span className="signal-pips">
-          {row.signals.map((signal) => (
-            <span
-              key={signal.id}
-              className={`signal-pip${signal.value === null ? ' signal-pip-missing' : ''}`}
-              title={
-                signal.value === null
-                  ? `${SHORT[signal.id]}: not measured for this gene`
-                  : `${SHORT[signal.id]}: ${signal.value.toFixed(2)}`
-              }
-            >
-              <i style={{ height: `${signal.value === null ? 0 : Math.max(6, signal.value * 100)}%` }} />
-              <em>{SHORT[signal.id]}</em>
-            </span>
-          ))}
+          {row.signals.map((signal) => {
+            const name = SIGNAL_LABEL[signal.id];
+            const detail = signal.value === null
+              ? `${name}: not measured for this gene`
+              : `${name}: ${signal.value.toFixed(2)}`;
+            return (
+              <span
+                key={signal.id}
+                className={`signal-pip${signal.value === null ? ' signal-pip-missing' : ''}`}
+                title={detail}
+                role="img"
+                aria-label={detail}
+              >
+                <i style={{ height: `${signal.value === null ? 0 : Math.max(6, signal.value * 100)}%` }} />
+                <em>{SHORT[signal.id]}</em>
+              </span>
+            );
+          })}
         </span>
       </td>
       <td className="tabnum" style={{ textAlign: 'right' }}>{fmt(row.selection?.omegaDb ?? null, 2)}</td>
